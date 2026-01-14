@@ -79,6 +79,7 @@ If you modify code directly instead of using an agent:
 - **OpenShift Integration:** Use `openshift-python-wrapper` for all cluster interactions (see detailed section below)
 - **Pre-commit:** Must pass before any commit - never use `git commit --no-verify`
 - **Code Simplicity:** Keep code simple and readable, avoid over-engineering
+- **No Auto-Skip:** Never use `pytest.skip()` inside fixtures - use `@pytest.mark.skipif` at test level
 - Every openshift resource must be created using `create_and_store_resource` function only.
 
 #### CRITICAL: OpenShift/Kubernetes Resource Interactions
@@ -246,6 +247,7 @@ isinstance(obj, DynamicClient)  # Runtime usage is forbidden
 - **Single responsibility:** Each function should do ONE thing well
 - **Extract helpers:** Use private helper functions (prefixed with `_`) for sub-tasks
 - **Clear names:** Helper function names should describe what they do
+- **Specific names:** Function names must clearly describe WHAT they do (e.g., `is_warm_migration_supported` not `is_supported`)
 
 **Example refactoring pattern:**
 
@@ -269,6 +271,330 @@ def do_complex_task() -> Output:
     result = _step_one()
     return _step_two(result)
 ```
+
+## Code Quality Rules (MANDATORY)
+
+These rules are derived from code review feedback and are **MANDATORY** for all code in this repository.
+
+### No Magic Auto-Skip in Fixtures
+
+**Tests must NEVER auto-skip based on fixture conditions.** If a feature is not supported, use explicit `@pytest.mark.skipif` at the test level, not inside fixtures.
+
+```python
+# ❌ WRONG - Magic skip inside fixture hides problems
+@pytest.fixture
+def feature_fixture():
+    if not is_supported():
+        pytest.skip("Not supported")  # Test silently skips - bad!
+    yield resource
+
+# ✅ CORRECT - Explicit skip at test level
+@pytest.mark.skipif(not is_supported(), reason="Feature X not supported on this cluster")
+def test_feature(feature_fixture):
+    ...
+```
+
+**Why:** Auto-skip in fixtures creates "magic" behavior where tests silently skip without clear visibility. The test appears to run but doesn't actually test anything.
+
+---
+
+### No Invalid/None States in Code Flow
+
+**Code must NEVER result in `None` when `None` is not a valid state.** If a value is required for the code to function correctly, fail early with a clear error.
+
+```python
+# ❌ WRONG - Allows None to propagate through code
+def get_vm_firmware(template):
+    firmware = template.spec.domain.get("firmware")  # Could be None
+    return firmware  # Caller now has to handle None everywhere
+
+# ✅ CORRECT - Fail fast with clear error
+def get_vm_firmware(template):
+    firmware = template.spec.domain.get("firmware")
+    if firmware is None:
+        raise ValueError(f"Firmware not found in template '{template.name}'")
+    return firmware
+```
+
+**Why:** Propagating `None` through the code creates cascading failures that are hard to debug. Fail at the source of the problem.
+
+---
+
+### Variables Must Have Consistent Types
+
+**A variable must have ONE type, not multiple possible types.** Mixed types indicate poor design and make code hard to reason about.
+
+```python
+# ❌ WRONG - actual_affinity could be dict, list, or None
+actual_affinity = vm.get("affinity")  # Type unknown
+
+# ✅ CORRECT - Explicit type, normalize early
+actual_affinity: dict[str, Any] = vm.get("affinity") or {}
+```
+
+**Why:** When a variable can be multiple types, every usage must check the type. This leads to defensive code and bugs.
+
+---
+
+### No Redundant Checks on Required Arguments
+
+**Don't check if required function arguments exist - they are required.** If an argument is in the function signature without a default, trust that it was provided.
+
+```python
+# ❌ WRONG - Checking required argument
+def compare_labels(expected_labels: dict, actual_labels: dict) -> bool:
+    if expected_labels and actual_labels:  # expected_labels is REQUIRED!
+        return expected_labels == actual_labels
+    return False
+
+# ✅ CORRECT - Trust required arguments
+def compare_labels(expected_labels: dict, actual_labels: dict) -> bool:
+    return expected_labels == actual_labels
+```
+
+**Why:** If an argument is required (no default value), the caller MUST provide it. Checking for it is unnecessary and hides bugs in calling code.
+
+---
+
+### No Duplicate Code
+
+**Extract common logic into shared functions.** If you see the same pattern more than once, refactor into a reusable function.
+
+```python
+# ❌ WRONG - Same pattern repeated
+def process_vsphere_vm(vm):
+    firmware = vm.spec.domain.get("firmware", {})
+    boot_order = firmware.get("bootOrder", [])
+    # ... process
+
+def process_rhv_vm(vm):
+    firmware = vm.spec.domain.get("firmware", {})
+    boot_order = firmware.get("bootOrder", [])
+    # ... same process
+
+# ✅ CORRECT - Extract common logic
+def _get_boot_order(vm) -> list:
+    firmware = vm.spec.domain.get("firmware", {})
+    return firmware.get("bootOrder", [])
+
+def process_vsphere_vm(vm):
+    boot_order = _get_boot_order(vm)
+    # ... process
+
+def process_rhv_vm(vm):
+    boot_order = _get_boot_order(vm)
+    # ... process
+```
+
+---
+
+### No Unnecessary Variables Before Yield/Return
+
+**Don't save values to variables just to immediately yield or return them.**
+
+```python
+# ❌ WRONG - Unnecessary variable
+@pytest.fixture
+def my_fixture():
+    result = create_resource()
+    yield result
+
+# ✅ CORRECT - Direct yield
+@pytest.fixture
+def my_fixture():
+    yield create_resource()
+```
+
+---
+
+### Use Correct Exception Types
+
+**Use specific exception types, not `RuntimeError` for everything.** Match the exception type to the error condition.
+
+| Situation | Exception Type |
+| --------- | -------------- |
+| Missing/invalid configuration | `ValueError` |
+| Resource not found | `ValueError` |
+| Invalid state or argument | `ValueError` |
+| Type mismatch | `TypeError` |
+| Key not found in dict | `KeyError` (let it propagate) |
+| Attribute not found | `AttributeError` |
+| External service failure | `ConnectionError` or custom |
+| Operation not permitted | `PermissionError` |
+
+```python
+# ❌ WRONG - RuntimeError for everything
+if not vm_name:
+    raise RuntimeError("Invalid configuration")
+if not provider.is_connected():
+    raise RuntimeError("Provider error")
+
+# ✅ CORRECT - Specific exception types
+if not vm_name:
+    raise ValueError("vm_name is required but was empty")
+if not provider.is_connected():
+    raise ConnectionError(f"Provider '{provider.name}' is not connected")
+```
+
+---
+
+### Use Empty Dict/List Default Instead of None Checks
+
+**If code must continue when a value might be missing, use empty container as default** to avoid repeated None checks.
+
+```python
+# ❌ WRONG - Requires None checks everywhere
+firmware_spec = template.spec.domain.get("firmware")
+if firmware_spec is not None:
+    boot_order = firmware_spec.get("bootOrder")
+    if boot_order is not None:
+        # process
+
+# ✅ CORRECT - Empty dict default, no None checks needed
+firmware_spec: dict[str, Any] = template.spec.domain.get("firmware", {})
+boot_order: list = firmware_spec.get("bootOrder", [])
+# process directly
+```
+
+---
+
+### Defensive Code Indicates Bugs
+
+**If you're writing code to handle a "should never happen" case, there's likely a bug elsewhere.** Fix the root cause instead of adding defensive code.
+
+```python
+# ❌ WRONG - Defensive code hiding a bug
+if vm_name is None:
+    logger.warning("VM name is None, skipping...")  # How did we get here?
+    return
+
+# ✅ CORRECT - Fail explicitly to expose the bug
+if vm_name is None:
+    raise ValueError("BUG: vm_name should never be None at this point - check calling code")
+```
+
+**Why:** Defensive code masks bugs and makes them harder to find. If a condition "should never happen", make it fail loudly so the root cause can be fixed.
+
+---
+
+### Function Names Must Be Specific and Descriptive
+
+**Function names must clearly describe what they do.** Avoid vague, generic names.
+
+```python
+# ❌ WRONG - Vague names
+def is_supported():  # Supported for what?
+def process_data():  # What data? What processing?
+def get_value():     # What value?
+
+# ✅ CORRECT - Specific, descriptive names
+def is_warm_migration_supported():
+def process_vm_network_config():
+def get_storage_class_name():
+```
+
+---
+
+### Type Annotations Required in Docstrings
+
+**All functions must have complete type annotations in docstrings** with Args, Returns, and Raises sections.
+
+```python
+# ❌ WRONG - No types in docstring
+def process_vm(vm, options):
+    """Process a VM.
+
+    Args:
+        vm: The VM to process
+        options: Processing options
+    """
+
+# ✅ CORRECT - Complete types in docstring
+def process_vm(vm: VirtualMachine, options: dict[str, Any]) -> MigrationResult:
+    """Process a VM for migration.
+
+    Args:
+        vm (VirtualMachine): The VM resource to process
+        options (dict[str, Any]): Processing options including timeout and retries
+
+    Returns:
+        MigrationResult: The result of the migration processing
+
+    Raises:
+        ValueError: If VM is in an invalid state for migration
+        ConnectionError: If connection to provider fails
+    """
+```
+
+---
+
+### Use Direct Attribute Access
+
+**Use direct attribute access; if the attribute doesn't exist, it will return `None`.** Don't over-complicate with nested checks.
+
+```python
+# ❌ WRONG - Overly defensive nested checks
+display_name = None
+if csv.instance and csv.instance.spec:
+    display_name = csv.instance.spec.get("displayName")
+
+# ✅ CORRECT - Direct attribute access
+display_name = csv.instance.spec.displayName  # Returns None if not exists
+```
+
+---
+
+### No Useless Assignments
+
+**Don't assign values that are never used.** If you need to raise an exception, raise it directly.
+
+```python
+# ❌ WRONG - Useless assignment before raise
+result = some_operation()
+if error_condition:
+    result = None  # This assignment is useless
+    raise ValueError("Error occurred")
+
+# ✅ CORRECT - Just raise
+result = some_operation()
+if error_condition:
+    raise ValueError("Error occurred")
+```
+
+---
+
+### Document Expected Exceptions
+
+**When catching exceptions, document in which cases they can occur.** If you can't explain when an exception would happen, you probably don't need to catch it.
+
+```python
+# ❌ WRONG - Catching exception without understanding when it occurs
+try:
+    value = some_operation()
+except (KeyError, TypeError, AttributeError):
+    value = default  # When do these happen?
+
+# ✅ CORRECT - Document or don't catch
+# Only catch if you know when it happens and have a recovery strategy
+try:
+    value = external_api.get_value()  # External API may not have the field
+except KeyError:
+    # External API response missing 'value' field - use default
+    value = default
+```
+
+---
+
+### Scope Changes Appropriately
+
+**Don't apply changes to unrelated code.** When fixing a bug or adding a feature, keep changes focused on the intended scope.
+
+- ✅ Fix the bug in the affected function
+- ❌ Don't "clean up" unrelated code in the same PR
+- ❌ Don't add the same pattern to other tests that don't need it
+- ❌ Don't refactor working code while fixing a bug
+
+---
 
 ### Testing Standards
 
