@@ -5,12 +5,14 @@ import logging
 import os
 import pickle
 import shutil
+import tempfile
 from collections.abc import Generator
 from copy import deepcopy
 from pathlib import Path
 from shutil import rmtree
 from typing import TYPE_CHECKING, Any
 
+import filelock
 import pytest
 from kubernetes.dynamic.exceptions import NotFoundError
 
@@ -64,9 +66,10 @@ from utilities.utils import (
     create_source_provider,
     generate_class_hash_prefix,
     get_cluster_client,
+    get_cluster_version,
     get_value_from_py_config,
 )
-from utilities.virtctl import download_virtctl_from_cluster
+from utilities.virtctl import add_to_path, download_virtctl_from_cluster
 
 RESULTS_PATH = Path("./.xdist_results/")
 RESULTS_PATH.mkdir(exist_ok=True)
@@ -424,18 +427,77 @@ def ocp_admin_client():
 
 
 @pytest.fixture(scope="session")
-def virtctl_binary(ocp_admin_client: "DynamicClient", tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """
-    Download and configure virtctl binary from the cluster.
+def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
+    """Download and configure virtctl binary from the cluster.
 
     This fixture ensures virtctl is available in PATH for all tests
     that need to interact with VMs via virtctl commands.
 
-    The binary is downloaded to a pytest temporary directory that is
-    automatically cleaned up after the test session.
+    Uses file locking to handle pytest-xdist parallel execution safely.
+    The binary is downloaded to a shared directory that all workers can access.
+    The directory includes the cluster version for automatic cache invalidation
+    when switching between clusters with different versions.
+
+    Args:
+        ocp_admin_client (DynamicClient): OpenShift cluster client for accessing
+            the cluster to download the virtctl binary.
+
+    Returns:
+        Path: Path to the downloaded virtctl binary.
+
+    Raises:
+        ValueError: If virtctl download fails or binary is not executable.
+        PermissionError: If shared directory ownership doesn't match current user.
+        PermissionError: If shared directory is a symlink (hijack attempt).
+        TimeoutError: If timeout waiting for file lock.
     """
-    virtctl_dir = tmp_path_factory.mktemp("virtctl")
-    return download_virtctl_from_cluster(client=ocp_admin_client, download_dir=virtctl_dir)
+    # Get cluster version for versioned caching
+    cluster_version = get_cluster_version(ocp_admin_client)
+
+    # Persistent shared directory for virtctl binary caching:
+    # - Path is intentionally persistent across test runs (not session-scoped tmp)
+    # - Visible to all pytest-xdist workers for cross-worker caching
+    # - Avoids re-downloading virtctl on every test session
+    # - Includes cluster version for automatic cache invalidation
+    # - Do NOT change to pytest's tmp_path or similar session-scoped directories
+    shared_dir = Path(tempfile.gettempdir()) / "pytest-shared-virtctl" / str(cluster_version)
+    shared_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+
+    # Security: check for symlink hijack attack
+    if shared_dir.is_symlink():
+        raise PermissionError(
+            f"Security error: shared directory {shared_dir} is a symlink. This may indicate a hijack attempt."
+        )
+
+    # Security: verify ownership and enforce permissions
+    current_uid = os.getuid()
+    dir_stat = shared_dir.lstat()
+    if dir_stat.st_uid != current_uid:
+        raise PermissionError(
+            f"Security error: shared directory {shared_dir} is owned by uid {dir_stat.st_uid}, "
+            f"expected current user uid {current_uid}. This may indicate a hijack attempt."
+        )
+    os.chmod(shared_dir, 0o700)
+
+    lock_file = shared_dir / "virtctl.lock"
+    virtctl_path = shared_dir / "virtctl"
+
+    try:
+        # File lock ensures only one process downloads
+        with filelock.FileLock(lock_file, timeout=600):
+            if not virtctl_path.is_file() or not os.access(virtctl_path, os.X_OK):
+                download_virtctl_from_cluster(client=ocp_admin_client, download_dir=shared_dir)
+                # Validate binary was downloaded successfully
+                if not virtctl_path.is_file() or not os.access(virtctl_path, os.X_OK):
+                    raise ValueError(f"Failed to download or make executable virtctl at {virtctl_path}")
+    except filelock.Timeout as err:
+        raise TimeoutError(
+            f"Timeout (600s) waiting for virtctl lock at {lock_file}. Another process may be stuck."
+        ) from err
+
+    # Add to PATH for all workers
+    add_to_path(str(shared_dir))
+    return virtctl_path
 
 
 @pytest.fixture(scope="session")
