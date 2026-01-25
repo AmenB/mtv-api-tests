@@ -39,6 +39,8 @@ This document provides project-specific instructions for the MTV API Tests codeb
   Assertions = verifying test outcomes (belongs in test methods).
   Use `@pytest.mark.skipif` at class/test level for conditional skipping.
 - **Every OpenShift resource:** Must use `create_and_store_resource()` function
+- **Logging Format:** Use f-strings for logging by default.
+  Use parameterized format (`%s`) only for expensive operations (e.g., `large_object.to_json()`) where lazy evaluation matters.
 
 ### OpenShift/Kubernetes Resource Interactions
 
