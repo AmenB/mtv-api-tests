@@ -246,19 +246,24 @@ class VMWareProvider(BaseProvider):
             target_vm = self.get_obj(vimtype=[vim.VirtualMachine], name=target_vm_name)
         except ValueError:
             if clone_vm:
-                # Use copyoffload datastore and host if configured
-                target_datastore_id = self.copyoffload_config.get("datastore_id")
-                target_esxi_host = self.copyoffload_config.get("esxi_host")
-
                 # Remove clone_name from options before passing to clone_vm
                 clone_vm_options = {k: v for k, v in clone_options.items() if k != "clone_name"}
+
+                # Use copyoffload datastore and host if configured, but allow clone_options to override
+                if "target_datastore_id" not in clone_vm_options:
+                    target_datastore_id = self.copyoffload_config.get("datastore_id")
+                    if target_datastore_id:
+                        clone_vm_options["target_datastore_id"] = target_datastore_id
+
+                if "target_esxi_host" not in clone_vm_options:
+                    target_esxi_host = self.copyoffload_config.get("esxi_host")
+                    if target_esxi_host:
+                        clone_vm_options["target_esxi_host"] = target_esxi_host
 
                 target_vm = self.clone_vm(
                     source_vm_name=query,
                     clone_vm_name=target_vm_name,
                     session_uuid=session_uuid,
-                    target_datastore_id=target_datastore_id,
-                    target_esxi_host=target_esxi_host,
                     **clone_vm_options,
                 )
                 if not target_vm:
@@ -1095,8 +1100,32 @@ class VMWareProvider(BaseProvider):
 
         target_datastore_id = kwargs.get("target_datastore_id")
         if target_datastore_id:
-            target_datastore = self.get_obj([vim.Datastore], target_datastore_id)
-            LOGGER.info(f"Using target datastore from config: {target_datastore.name} ({target_datastore_id})")
+            # Support string resolution for special datastore keywords
+            datastore_keywords = {
+                "non_xcopy_datastore_id": ("non-XCOPY target", "Non-XCOPY"),
+                "secondary_datastore_id": ("secondary target", "Secondary"),
+            }
+
+            if target_datastore_id in datastore_keywords:
+                log_prefix, error_prefix = datastore_keywords[target_datastore_id]
+                if not self.copyoffload_config or target_datastore_id not in self.copyoffload_config:
+                    raise VmCloneError(
+                        f"target_datastore_id='{target_datastore_id}' requires copyoffload.{target_datastore_id} to be configured"
+                    )
+                actual_datastore_id = self.copyoffload_config[target_datastore_id]
+                if not actual_datastore_id:
+                    raise VmCloneError(f"copyoffload.{target_datastore_id} is empty")
+                try:
+                    target_datastore = self.get_obj([vim.Datastore], actual_datastore_id)
+                except ValueError as exc:
+                    raise VmCloneError(
+                        f"{error_prefix} datastore not found. MoID '{actual_datastore_id}' is invalid or not accessible"
+                    ) from exc
+                LOGGER.info(f"Using {log_prefix} datastore: {target_datastore.name} ({actual_datastore_id})")
+            else:
+                # Regular MoRef ID or datastore name
+                target_datastore = self.get_obj([vim.Datastore], target_datastore_id)
+                LOGGER.info(f"Using target datastore from config: {target_datastore.name} ({target_datastore_id})")
         elif source_vm.datastore:
             target_datastore = source_vm.datastore[0]
             LOGGER.info(f"Using source VM's default datastore: {target_datastore.name}")
