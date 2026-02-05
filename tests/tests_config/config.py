@@ -66,7 +66,6 @@ tests_params: dict = {
                 "guest_agent": True,
                 "clone": True,
                 "disk_type": "thin",
-                "add_disks": [],
             },
         ],
         "warm_migration": False,
@@ -80,7 +79,6 @@ tests_params: dict = {
                 "guest_agent": True,
                 "clone": True,
                 "disk_type": "thick-lazy",
-                "add_disks": [],
             },
         ],
         "warm_migration": False,
@@ -145,7 +143,6 @@ tests_params: dict = {
                 "clone": True,
                 "disk_type": "thin",
                 "snapshots": 2,  # Number of snapshots to create on the source VM before migration
-                "add_disks": [],
             },
         ],
         "warm_migration": False,
@@ -265,7 +262,6 @@ tests_params: dict = {
                 "guest_agent": True,
                 "clone": True,
                 "disk_type": "thin",
-                "add_disks": [],
             },
         ],
         "warm_migration": True,
@@ -328,6 +324,26 @@ tests_params: dict = {
         "warm_migration": False,
         "copyoffload": True,
     },
+    "test_simultaneous_copyoffload_migrations": {
+        "virtual_machines": [
+            {
+                "name": "xcopy-template-test",
+                "source_vm_power": "off",
+                "guest_agent": True,
+                "clone": True,
+                "disk_type": "thin",
+            },
+            {
+                "name": "xcopy-template-test",
+                "source_vm_power": "off",
+                "guest_agent": True,
+                "clone": True,
+                "disk_type": "thin",
+            },
+        ],
+        "warm_migration": False,
+        "copyoffload": True,
+    },
     "test_copyoffload_nonconforming_name_migration": {
         "virtual_machines": [
             {
@@ -338,7 +354,6 @@ tests_params: dict = {
                 "guest_agent": True,
                 "clone": True,
                 "disk_type": "thin",
-                "add_disks": [],
             },
         ],
         "warm_migration": False,

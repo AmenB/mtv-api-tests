@@ -66,6 +66,7 @@ from utilities.ssh_utils import SSHConnectionManager
 from utilities.utils import (
     create_source_cnv_vms,
     create_source_provider,
+    extract_vm_from_plan,
     generate_class_hash_prefix,
     get_cluster_client,
     get_cluster_version,
@@ -922,6 +923,40 @@ def prepared_plan(
     # Session-level registration is intentionally omitted to prevent double cleanup.
     # The cleanup_migrated_vms fixture handles VM deletion, and any leftover resources
     # (e.g., if cleanup_migrated_vms is not used) will be caught by namespace deletion.
+
+
+@pytest.fixture(scope="class")
+def prepared_plan_1(prepared_plan: dict[str, Any]) -> dict[str, Any]:
+    """Prepare first migration plan configuration for simultaneous migrations.
+
+    This fixture extracts the first VM from a prepared plan containing multiple VMs,
+    creating an independent plan for the first migration. Use this with prepared_plan_2
+    to run two migrations simultaneously.
+
+    Args:
+        prepared_plan: Base prepared plan with cloned VMs
+
+    Returns:
+        Deep copy of prepared plan with first VM only
+    """
+    return extract_vm_from_plan(prepared_plan, vm_index=0, fixture_name="prepared_plan_1")
+
+
+@pytest.fixture(scope="class")
+def prepared_plan_2(prepared_plan: dict[str, Any]) -> dict[str, Any]:
+    """Prepare second migration plan configuration for simultaneous migrations.
+
+    This fixture extracts the second VM from a prepared plan containing multiple VMs,
+    creating an independent plan for the second migration. Use this with prepared_plan_1
+    to run two migrations simultaneously.
+
+    Args:
+        prepared_plan: Base prepared plan with cloned VMs
+
+    Returns:
+        Deep copy of prepared plan with second VM only
+    """
+    return extract_vm_from_plan(prepared_plan, vm_index=1, fixture_name="prepared_plan_2")
 
 
 @pytest.fixture(scope="class")
