@@ -93,8 +93,7 @@ class TestClusterroleColdMtvMigration:
                 namespace=target_namespace,
             )
             assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. "
-                f"Status: {vm.instance.status.printableStatus}"
+                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )
 
 
@@ -176,8 +175,7 @@ class TestClusterroleWarmMtvMigration:
                 namespace=target_namespace,
             )
             assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. "
-                f"Status: {vm.instance.status.printableStatus}"
+                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )
 
 
@@ -293,6 +291,5 @@ class TestClusterroleConfigmapSecretMigration:
                 namespace=target_namespace,
             )
             assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. "
-                f"Status: {vm.instance.status.printableStatus}"
+                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )

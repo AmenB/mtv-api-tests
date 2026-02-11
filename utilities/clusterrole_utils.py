@@ -40,27 +40,21 @@ def verify_configmap_migrated(
         namespace=source_namespace,
     )
     if not source_cm.exists:
-        raise AssertionError(
-            f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}"
-        )
+        raise AssertionError(f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}")
 
     target_cm = ConfigMap(
         client=client,
         name=configmap_name,
         namespace=target_namespace,
     )
-    assert target_cm.exists, (
-        f"ConfigMap {configmap_name} was not migrated to target namespace {target_namespace}"
-    )
+    assert target_cm.exists, f"ConfigMap {configmap_name} was not migrated to target namespace {target_namespace}"
 
     source_data = source_cm.instance.data or {}
     target_data = target_cm.instance.data or {}
     assert source_data == target_data, (
         f"ConfigMap {configmap_name} data mismatch: source {source_data} != target {target_data}"
     )
-    LOGGER.info(
-        f"ConfigMap {configmap_name} verified in target namespace {target_namespace}"
-    )
+    LOGGER.info(f"ConfigMap {configmap_name} verified in target namespace {target_namespace}")
 
 
 def verify_secret_migrated(
@@ -89,18 +83,14 @@ def verify_secret_migrated(
         namespace=source_namespace,
     )
     if not source_secret.exists:
-        raise AssertionError(
-            f"Source Secret {secret_name} not found in namespace {source_namespace}"
-        )
+        raise AssertionError(f"Source Secret {secret_name} not found in namespace {source_namespace}")
 
     target_secret = Secret(
         client=client,
         name=secret_name,
         namespace=target_namespace,
     )
-    assert target_secret.exists, (
-        f"Secret {secret_name} was not migrated to target namespace {target_namespace}"
-    )
+    assert target_secret.exists, f"Secret {secret_name} was not migrated to target namespace {target_namespace}"
 
     source_data = source_secret.instance.data or {}
     target_data = target_secret.instance.data or {}
@@ -111,6 +101,4 @@ def verify_secret_migrated(
         assert source_data[key] == target_data[key], (
             f"Secret {secret_name} data for key {key} mismatch between source and target"
         )
-    LOGGER.info(
-        f"Secret {secret_name} verified in target namespace {target_namespace}"
-    )
+    LOGGER.info(f"Secret {secret_name} verified in target namespace {target_namespace}")
