@@ -146,9 +146,7 @@ class TestClusterroleConfigmapSecretMigration:
         were migrated to target namespace using verify_configmap_migrated and verify_secret_migrated.
         """
         if source_vms_namespace is None:
-            pytest.skip(
-                "source_vms_namespace is None: test requires an OpenShift source provider"
-            )
+            pytest.skip("source_vms_namespace is None: test requires an OpenShift source provider")
 
         configmap_name = f"{fixture_store['session_uuid']}-test-configmap"
         create_and_store_resource(

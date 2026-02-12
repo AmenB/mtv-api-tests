@@ -458,8 +458,8 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         PermissionError: If shared directory is a symlink (hijack attempt).
         TimeoutError: If timeout waiting for file lock.
     """
-    #if env variable VIRTCTL_PATH is set, use it.
-        # if env variable VIRTCTL_PATH is set, use it.
+    # if env variable VIRTCTL_PATH is set, use it.
+    # if env variable VIRTCTL_PATH is set, use it.
     if virtctl_env_path := os.environ.get("VIRTCTL_PATH"):
         return Path(virtctl_env_path)
 

@@ -98,8 +98,7 @@ def verify_vms_running(
         )
         vm.wait(timeout=300)
         assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-            f"VM {vm.name} is not Running after migration. "
-            f"Status: {vm.instance.status.printableStatus}"
+            f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
         )
 
 
@@ -128,9 +127,7 @@ def verify_configmap_migrated(
         name=configmap_name,
         namespace=source_namespace,
     )
-    assert source_cm.exists, (
-        f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}"
-    )
+    assert source_cm.exists, f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}"
 
     target_cm = ConfigMap(
         client=client,
@@ -172,9 +169,7 @@ def verify_secret_migrated(
         name=secret_name,
         namespace=source_namespace,
     )
-    assert source_secret.exists, (
-        f"Source Secret {secret_name} not found in namespace {source_namespace}"
-    )
+    assert source_secret.exists, f"Source Secret {secret_name} not found in namespace {source_namespace}"
 
     target_secret = Secret(
         client=client,
@@ -185,9 +180,5 @@ def verify_secret_migrated(
 
     source_data = source_secret.instance.data or {}
     target_data = target_secret.instance.data or {}
-    assert source_data == target_data, (
-        f"Secret {secret_name} data mismatch between source and target"
-    )
-    LOGGER.info(
-        f"Secret {secret_name} verified in target namespace {target_namespace}"
-    )
+    assert source_data == target_data, f"Secret {secret_name} data mismatch between source and target"
+    LOGGER.info(f"Secret {secret_name} verified in target namespace {target_namespace}")
