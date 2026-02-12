@@ -459,7 +459,6 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         TimeoutError: If timeout waiting for file lock.
     """
     # if env variable VIRTCTL_PATH is set, use it.
-    # if env variable VIRTCTL_PATH is set, use it.
     if virtctl_env_path := os.environ.get("VIRTCTL_PATH"):
         return Path(virtctl_env_path)
 
@@ -787,6 +786,18 @@ def clusterrole_destination_ocp_provider(
       4. Create Forklift Provider CR using that token
 
     Does NOT create the ClusterRole; forklift-migrator-role must already exist in the cluster.
+
+    Args:
+        fixture_store (dict[str, Any]): Fixture store for resource tracking and teardown.
+        ocp_admin_client (DynamicClient): OpenShift DynamicClient for cluster operations.
+        session_uuid (str): Unique session identifier for resource naming.
+        target_namespace (str): Namespace for provider resources.
+
+    Returns:
+        OCPProvider: Token-based OCP provider bound to forklift-migrator-role.
+
+    Raises:
+        ValueError: If the SA token is not populated within 60s.
     """
     sa_name = f"{session_uuid}-forklift-migrator-sa"
     binding_name = f"{session_uuid}-forklift-migrator-binding"

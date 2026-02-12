@@ -42,6 +42,20 @@ def run_clusterrole_migration(
     """Run the full migration flow for ClusterRole tests: maps, plan, execute.
 
     Creates StorageMap, NetworkMap, Plan, runs execute_migration, and waits for completion.
+
+    Args:
+        ocp_admin_client (DynamicClient): OpenShift/Kubernetes client.
+        fixture_store (dict[str, Any]): Fixture store for resource tracking.
+        source_provider (BaseProvider): Source provider instance.
+        destination_provider (OCPProvider): Token-based OCP destination provider.
+        prepared_plan (dict[str, Any]): Plan configuration with virtual_machines list.
+        source_provider_inventory (ForkliftInventory): Forklift inventory for the source provider.
+        target_namespace (str): Target namespace for migration resources.
+        multus_network_name (dict[str, str]): Multus network name mapping.
+        cut_over (datetime | None): Optional cutover datetime for warm migrations.
+
+    Raises:
+        AssertionError: If migration fails or resources are not created.
     """
     vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
     storage_map = get_storage_migration_map(
@@ -89,7 +103,16 @@ def verify_vms_running(
     prepared_plan: dict[str, Any],
     target_namespace: str,
 ) -> None:
-    """Assert each VM in the plan is Running in the target namespace."""
+    """Assert each VM in the plan is Running in the target namespace.
+
+    Args:
+        ocp_admin_client (DynamicClient): OpenShift/Kubernetes client.
+        prepared_plan (dict[str, Any]): Plan configuration with virtual_machines list.
+        target_namespace (str): Target namespace to check VMs in.
+
+    Raises:
+        AssertionError: If any VM is not in Running status.
+    """
     for vm_config in prepared_plan["virtual_machines"]:
         vm = VirtualMachine(
             client=ocp_admin_client,
@@ -114,10 +137,10 @@ def verify_configmap_migrated(
     matches the source ConfigMap.
 
     Args:
-        client: OpenShift/Kubernetes client.
-        source_namespace: Namespace where the ConfigMap was created before migration.
-        target_namespace: Namespace where the ConfigMap should exist after migration.
-        configmap_name: Name of the ConfigMap.
+        client (DynamicClient): OpenShift/Kubernetes client.
+        source_namespace (str): Namespace where the ConfigMap was created before migration.
+        target_namespace (str): Namespace where the ConfigMap should exist after migration.
+        configmap_name (str): Name of the ConfigMap.
 
     Raises:
         AssertionError: If ConfigMap is missing in target or data does not match.
@@ -156,10 +179,10 @@ def verify_secret_migrated(
     matches the source Secret (compares raw Secret.data, base64-encoded).
 
     Args:
-        client: OpenShift/Kubernetes client.
-        source_namespace: Namespace where the Secret was created before migration.
-        target_namespace: Namespace where the Secret should exist after migration.
-        secret_name: Name of the Secret.
+        client (DynamicClient): OpenShift/Kubernetes client.
+        source_namespace (str): Namespace where the Secret was created before migration.
+        target_namespace (str): Namespace where the Secret should exist after migration.
+        secret_name (str): Name of the Secret.
 
     Raises:
         AssertionError: If Secret is missing in target or data does not match.

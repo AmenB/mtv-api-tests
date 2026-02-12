@@ -1,5 +1,6 @@
 import pytest
 from ocp_resources.config_map import ConfigMap
+from ocp_resources.provider import Provider
 from ocp_resources.secret import Secret
 from pytest_testconfig import config as py_config
 
@@ -125,6 +126,10 @@ class TestClusterroleWarmMtvMigration:
     indirect=True,
     ids=["MTV-3129-clusterrole-configmap-secret"],
 )
+@pytest.mark.skipif(
+    py_config.get("source_provider_type") != Provider.ProviderType.OPENSHIFT,
+    reason="ConfigMap/Secret migration test requires an OpenShift source provider",
+)
 @pytest.mark.usefixtures("cleanup_migrated_vms")
 class TestClusterroleConfigmapSecretMigration:
     """Verify ClusterRole with ConfigMap/Secret migration."""
@@ -165,7 +170,7 @@ class TestClusterroleConfigmapSecretMigration:
             resource=Secret,
             namespace=source_vms_namespace,
             name=secret_name,
-            string_data={"username": "testuser", "password": "testpass"},
+            string_data={"username": "testuser", "password": "testpass"},  # pragma: allowlist secret
         )
 
         run_clusterrole_migration(
