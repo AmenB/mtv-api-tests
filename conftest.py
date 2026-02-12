@@ -34,7 +34,7 @@ from ocp_resources.virtual_machine import VirtualMachine
 from ocp_resources.resource import ResourceEditor
 from pytest_harvest import get_fixture_store
 from pytest_testconfig import config as py_config
-from timeout_sampler import TimeoutSampler
+from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from exceptions.exceptions import (
     ForkliftPodsNotRunningError,
@@ -458,9 +458,16 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         PermissionError: If shared directory is a symlink (hijack attempt).
         TimeoutError: If timeout waiting for file lock.
     """
+<<<<<<< HEAD
     # if env variable VIRTCTL_PATH is set, use it.
     if os.environ.get("VIRTCTL_PATH"):
         return Path(os.environ.get("VIRTCTL_PATH"))
+=======
+    #if env variable VIRTCTL_PATH is set, use it.
+        # if env variable VIRTCTL_PATH is set, use it.
+    if virtctl_env_path := os.environ.get("VIRTCTL_PATH"):
+        return Path(virtctl_env_path)
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     # Get cluster version for versioned caching
     cluster_version = get_cluster_version(ocp_admin_client)
@@ -772,11 +779,11 @@ FORKLIFT_MIGRATOR_ROLE_NAME = "forklift-migrator-role"
 
 @pytest.fixture(scope="session")
 def clusterrole_destination_ocp_provider(
-    fixture_store,
-    ocp_admin_client,
-    session_uuid,
-    target_namespace,
-):
+    fixture_store: dict[str, Any],
+    ocp_admin_client: "DynamicClient",
+    session_uuid: str,
+    target_namespace: str,
+) -> OCPProvider:
     """Create a token-based OCP provider using the existing forklift-migrator-role and a fresh SA.
 
     Verifies the flow:
@@ -793,7 +800,7 @@ def clusterrole_destination_ocp_provider(
     provider_name = f"{session_uuid}-clusterrole-destination-ocp-provider"
 
     # 1. Create a fresh ServiceAccount in target namespace
-    service_account = create_and_store_resource(
+    create_and_store_resource(
         client=ocp_admin_client,
         fixture_store=fixture_store,
         resource=ServiceAccount,
@@ -810,11 +817,10 @@ def clusterrole_destination_ocp_provider(
         cluster_role=FORKLIFT_MIGRATOR_ROLE_NAME,
         subjects=[{"kind": "ServiceAccount", "name": sa_name, "namespace": target_namespace}],
     )
-    # Ensure binding is ready
     cluster_role_binding.wait()
 
     # Token secret: create Secret with type service-account-token so cluster populates token
-    token_secret = create_and_store_resource(
+    create_and_store_resource(
         client=ocp_admin_client,
         fixture_store=fixture_store,
         resource=Secret,
@@ -825,19 +831,30 @@ def clusterrole_destination_ocp_provider(
     )
 
     # Wait for token to be populated (controller fills it asynchronously)
-    def _has_token():
-        s = Secret(client=ocp_admin_client, name=token_secret_name, namespace=target_namespace)
-        s.wait()
-        return (s.instance.data or {}).get("token")
+    token_secret_ref = Secret(
+        client=ocp_admin_client,
+        name=token_secret_name,
+        namespace=target_namespace,
+    )
 
-    for sample in TimeoutSampler(wait_timeout=60, sleep=2, func=_has_token):
-        if sample:
-            token_b64 = sample
-            break
-    else:
+    def _has_token():
+        token_secret_ref.wait()
+        return (token_secret_ref.instance.data or {}).get("token")
+
+    token_b64 = None
+    try:
+        for sample in TimeoutSampler(wait_timeout=60, sleep=2, func=_has_token):
+            if sample:
+                token_b64 = sample
+                break
+        if not token_b64:
+            raise ValueError(
+                f"Token was not populated in Secret {token_secret_name} for ServiceAccount {sa_name} within 60s"
+            )
+    except TimeoutExpiredError:
         raise ValueError(
             f"Token was not populated in Secret {token_secret_name} for ServiceAccount {sa_name} within 60s"
-        )
+        ) from None
 
     token_value = base64.b64decode(token_b64).decode("utf-8")
 
@@ -864,7 +881,7 @@ def clusterrole_destination_ocp_provider(
         provider_type=Provider.ProviderType.OPENSHIFT,
     )
 
-    yield OCPProvider(ocp_resource=provider, fixture_store=fixture_store)
+    return OCPProvider(ocp_resource=provider, fixture_store=fixture_store)
 
 
 @pytest.fixture(scope="class")

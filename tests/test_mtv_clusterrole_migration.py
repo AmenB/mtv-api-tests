@@ -1,18 +1,17 @@
 import pytest
 from ocp_resources.config_map import ConfigMap
 from ocp_resources.secret import Secret
-from ocp_resources.virtual_machine import VirtualMachine
 from pytest_testconfig import config as py_config
 
-from utilities.clusterrole_utils import verify_configmap_migrated, verify_secret_migrated
-from utilities.mtv_migration import (
-    create_plan_resource,
-    execute_migration,
-    get_network_migration_map,
-    get_storage_migration_map,
+from utilities.clusterrole_utils import (
+    run_clusterrole_migration,
+    verify_configmap_migrated,
+    verify_secret_migrated,
+    verify_vms_running,
 )
+from utilities.migration_utils import get_cutover_value
 from utilities.resources import create_and_store_resource
-from utilities.utils import get_value_from_py_config, populate_vm_ids
+from utilities.utils import get_value_from_py_config
 
 
 @pytest.mark.remote
@@ -47,45 +46,23 @@ class TestClusterroleColdMtvMigration:
         Steps: ClusterRole/SA/token/provider by fixture; create NetworkMap and StorageMap;
         create Plan, run migration, verify VMs running.
         """
-        vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
-        storage_map = get_storage_migration_map(
-            fixture_store=fixture_store,
-            target_namespace=target_namespace,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
+        run_clusterrole_migration(
             ocp_admin_client=ocp_admin_client,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
-        )
-        network_map = get_network_migration_map(
             fixture_store=fixture_store,
             source_provider=source_provider,
             destination_provider=clusterrole_destination_ocp_provider,
+            prepared_plan=prepared_plan,
+            source_provider_inventory=source_provider_inventory,
+            target_namespace=target_namespace,
             multus_network_name=multus_network_name,
-            ocp_admin_client=ocp_admin_client,
-            target_namespace=target_namespace,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
         )
-        populate_vm_ids(prepared_plan, source_provider_inventory)
-        plan_resource = create_plan_resource(
+        verify_vms_running(
             ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
-            storage_map=storage_map,
-            network_map=network_map,
-            virtual_machines_list=prepared_plan["virtual_machines"],
-            target_namespace=target_namespace,
-            warm_migration=prepared_plan.get("warm_migration", False),
-        )
-        execute_migration(
-            ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            plan=plan_resource,
+            prepared_plan=prepared_plan,
             target_namespace=target_namespace,
         )
 
+<<<<<<< HEAD
         for vm_config in prepared_plan["virtual_machines"]:
             vm = VirtualMachine(
                 client=ocp_admin_client,
@@ -96,6 +73,8 @@ class TestClusterroleColdMtvMigration:
                 f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )
 
+=======
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
 @pytest.mark.remote
 @pytest.mark.tier0
@@ -129,45 +108,24 @@ class TestClusterroleWarmMtvMigration:
         Steps: ClusterRole/SA/token/provider by fixture; create NetworkMap and StorageMap;
         create Plan, run warm migration, verify VMs running.
         """
-        vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
-        storage_map = get_storage_migration_map(
-            fixture_store=fixture_store,
-            target_namespace=target_namespace,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
+        run_clusterrole_migration(
             ocp_admin_client=ocp_admin_client,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
-        )
-        network_map = get_network_migration_map(
             fixture_store=fixture_store,
             source_provider=source_provider,
             destination_provider=clusterrole_destination_ocp_provider,
+            prepared_plan=prepared_plan,
+            source_provider_inventory=source_provider_inventory,
+            target_namespace=target_namespace,
             multus_network_name=multus_network_name,
-            ocp_admin_client=ocp_admin_client,
-            target_namespace=target_namespace,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
+            cut_over=get_cutover_value(),
         )
-        populate_vm_ids(prepared_plan, source_provider_inventory)
-        plan_resource = create_plan_resource(
+        verify_vms_running(
             ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
-            storage_map=storage_map,
-            network_map=network_map,
-            virtual_machines_list=prepared_plan["virtual_machines"],
-            target_namespace=target_namespace,
-            warm_migration=prepared_plan.get("warm_migration", False),
-        )
-        execute_migration(
-            ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            plan=plan_resource,
+            prepared_plan=prepared_plan,
             target_namespace=target_namespace,
         )
 
+<<<<<<< HEAD
         for vm_config in prepared_plan["virtual_machines"]:
             vm = VirtualMachine(
                 client=ocp_admin_client,
@@ -178,6 +136,8 @@ class TestClusterroleWarmMtvMigration:
                 f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )
 
+=======
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
 @pytest.mark.remote
 @pytest.mark.tier0
@@ -211,6 +171,11 @@ class TestClusterroleConfigmapSecretMigration:
         Creates ConfigMap and Secret in source namespace, migrates VM, verifies both
         were migrated to target namespace using verify_configmap_migrated and verify_secret_migrated.
         """
+        if source_vms_namespace is None:
+            pytest.skip(
+                "source_vms_namespace is None: test requires an OpenShift source provider"
+            )
+
         configmap_name = f"{fixture_store['session_uuid']}-test-configmap"
         create_and_store_resource(
             client=ocp_admin_client,
@@ -231,43 +196,15 @@ class TestClusterroleConfigmapSecretMigration:
             string_data={"username": "testuser", "password": "testpass"},
         )
 
-        vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
-        storage_map = get_storage_migration_map(
-            fixture_store=fixture_store,
-            target_namespace=target_namespace,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
+        run_clusterrole_migration(
             ocp_admin_client=ocp_admin_client,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
-        )
-        network_map = get_network_migration_map(
             fixture_store=fixture_store,
             source_provider=source_provider,
             destination_provider=clusterrole_destination_ocp_provider,
+            prepared_plan=prepared_plan,
+            source_provider_inventory=source_provider_inventory,
+            target_namespace=target_namespace,
             multus_network_name=multus_network_name,
-            ocp_admin_client=ocp_admin_client,
-            target_namespace=target_namespace,
-            source_provider_inventory=source_provider_inventory,
-            vms=vms,
-        )
-        populate_vm_ids(prepared_plan, source_provider_inventory)
-        plan_resource = create_plan_resource(
-            ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            source_provider=source_provider,
-            destination_provider=clusterrole_destination_ocp_provider,
-            storage_map=storage_map,
-            network_map=network_map,
-            virtual_machines_list=prepared_plan["virtual_machines"],
-            target_namespace=target_namespace,
-            warm_migration=prepared_plan.get("warm_migration", False),
-        )
-        execute_migration(
-            ocp_admin_client=ocp_admin_client,
-            fixture_store=fixture_store,
-            plan=plan_resource,
-            target_namespace=target_namespace,
         )
 
         verify_configmap_migrated(
@@ -284,6 +221,7 @@ class TestClusterroleConfigmapSecretMigration:
             secret_name=secret_name,
         )
 
+<<<<<<< HEAD
         for vm_config in prepared_plan["virtual_machines"]:
             vm = VirtualMachine(
                 client=ocp_admin_client,
@@ -293,3 +231,10 @@ class TestClusterroleConfigmapSecretMigration:
             assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
                 f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
             )
+=======
+        verify_vms_running(
+            ocp_admin_client=ocp_admin_client,
+            prepared_plan=prepared_plan,
+            target_namespace=target_namespace,
+        )
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)

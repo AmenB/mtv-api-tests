@@ -2,16 +2,105 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from ocp_resources.config_map import ConfigMap
 from ocp_resources.secret import Secret
+from ocp_resources.virtual_machine import VirtualMachine
 from simple_logger.logger import get_logger
+
+from utilities.mtv_migration import (
+    create_plan_resource,
+    execute_migration,
+    get_network_migration_map,
+    get_storage_migration_map,
+)
+from utilities.utils import populate_vm_ids
 
 if TYPE_CHECKING:
     from kubernetes.dynamic import DynamicClient
 
+    from libs.base_provider import BaseProvider
+    from libs.forklift_inventory import ForkliftInventory
+    from libs.providers.openshift import OCPProvider
+
 LOGGER = get_logger(__name__)
+
+
+def run_clusterrole_migration(
+    ocp_admin_client: "DynamicClient",
+    fixture_store: dict[str, Any],
+    source_provider: "BaseProvider",
+    destination_provider: "OCPProvider",
+    prepared_plan: dict[str, Any],
+    source_provider_inventory: "ForkliftInventory",
+    target_namespace: str,
+    multus_network_name: dict[str, str],
+    cut_over: datetime | None = None,
+) -> None:
+    """Run the full migration flow for ClusterRole tests: maps, plan, execute.
+
+    Creates StorageMap, NetworkMap, Plan, runs execute_migration, and waits for completion.
+    """
+    vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
+    storage_map = get_storage_migration_map(
+        fixture_store=fixture_store,
+        target_namespace=target_namespace,
+        source_provider=source_provider,
+        destination_provider=destination_provider,
+        ocp_admin_client=ocp_admin_client,
+        source_provider_inventory=source_provider_inventory,
+        vms=vms,
+    )
+    network_map = get_network_migration_map(
+        fixture_store=fixture_store,
+        source_provider=source_provider,
+        destination_provider=destination_provider,
+        multus_network_name=multus_network_name,
+        ocp_admin_client=ocp_admin_client,
+        target_namespace=target_namespace,
+        source_provider_inventory=source_provider_inventory,
+        vms=vms,
+    )
+    populate_vm_ids(prepared_plan, source_provider_inventory)
+    plan_resource = create_plan_resource(
+        ocp_admin_client=ocp_admin_client,
+        fixture_store=fixture_store,
+        source_provider=source_provider,
+        destination_provider=destination_provider,
+        storage_map=storage_map,
+        network_map=network_map,
+        virtual_machines_list=prepared_plan["virtual_machines"],
+        target_namespace=target_namespace,
+        warm_migration=prepared_plan.get("warm_migration", False),
+    )
+    execute_migration(
+        ocp_admin_client=ocp_admin_client,
+        fixture_store=fixture_store,
+        plan=plan_resource,
+        target_namespace=target_namespace,
+        cut_over=cut_over,
+    )
+
+
+def verify_vms_running(
+    ocp_admin_client: "DynamicClient",
+    prepared_plan: dict[str, Any],
+    target_namespace: str,
+) -> None:
+    """Assert each VM in the plan is Running in the target namespace."""
+    for vm_config in prepared_plan["virtual_machines"]:
+        vm = VirtualMachine(
+            client=ocp_admin_client,
+            name=vm_config["name"],
+            namespace=target_namespace,
+        )
+        vm.wait(timeout=300)
+        assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
+            f"VM {vm.name} is not Running after migration. "
+            f"Status: {vm.instance.status.printableStatus}"
+        )
 
 
 def verify_configmap_migrated(
@@ -39,8 +128,14 @@ def verify_configmap_migrated(
         name=configmap_name,
         namespace=source_namespace,
     )
+<<<<<<< HEAD
     if not source_cm.exists:
         raise AssertionError(f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}")
+=======
+    assert source_cm.exists, (
+        f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}"
+    )
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     target_cm = ConfigMap(
         client=client,
@@ -66,7 +161,7 @@ def verify_secret_migrated(
     """Verify that a Secret was migrated from source to target namespace.
 
     Asserts the Secret exists in the target namespace and that its data
-    matches the source Secret (compares decoded data).
+    matches the source Secret (compares raw Secret.data, base64-encoded).
 
     Args:
         client: OpenShift/Kubernetes client.
@@ -82,8 +177,14 @@ def verify_secret_migrated(
         name=secret_name,
         namespace=source_namespace,
     )
+<<<<<<< HEAD
     if not source_secret.exists:
         raise AssertionError(f"Source Secret {secret_name} not found in namespace {source_namespace}")
+=======
+    assert source_secret.exists, (
+        f"Source Secret {secret_name} not found in namespace {source_namespace}"
+    )
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     target_secret = Secret(
         client=client,
@@ -94,11 +195,17 @@ def verify_secret_migrated(
 
     source_data = source_secret.instance.data or {}
     target_data = target_secret.instance.data or {}
-    assert set(source_data.keys()) == set(target_data.keys()), (
-        f"Secret {secret_name} keys mismatch: source {list(source_data)} != target {list(target_data)}"
+    assert source_data == target_data, (
+        f"Secret {secret_name} data mismatch between source and target"
     )
+<<<<<<< HEAD
     for key in source_data:
         assert source_data[key] == target_data[key], (
             f"Secret {secret_name} data for key {key} mismatch between source and target"
         )
     LOGGER.info(f"Secret {secret_name} verified in target namespace {target_namespace}")
+=======
+    LOGGER.info(
+        f"Secret {secret_name} verified in target namespace {target_namespace}"
+    )
+>>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
