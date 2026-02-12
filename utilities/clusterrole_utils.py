@@ -128,14 +128,9 @@ def verify_configmap_migrated(
         name=configmap_name,
         namespace=source_namespace,
     )
-<<<<<<< HEAD
-    if not source_cm.exists:
-        raise AssertionError(f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}")
-=======
     assert source_cm.exists, (
         f"Source ConfigMap {configmap_name} not found in namespace {source_namespace}"
     )
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     target_cm = ConfigMap(
         client=client,
@@ -177,14 +172,9 @@ def verify_secret_migrated(
         name=secret_name,
         namespace=source_namespace,
     )
-<<<<<<< HEAD
-    if not source_secret.exists:
-        raise AssertionError(f"Source Secret {secret_name} not found in namespace {source_namespace}")
-=======
     assert source_secret.exists, (
         f"Source Secret {secret_name} not found in namespace {source_namespace}"
     )
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     target_secret = Secret(
         client=client,
@@ -198,14 +188,6 @@ def verify_secret_migrated(
     assert source_data == target_data, (
         f"Secret {secret_name} data mismatch between source and target"
     )
-<<<<<<< HEAD
-    for key in source_data:
-        assert source_data[key] == target_data[key], (
-            f"Secret {secret_name} data for key {key} mismatch between source and target"
-        )
-    LOGGER.info(f"Secret {secret_name} verified in target namespace {target_namespace}")
-=======
     LOGGER.info(
         f"Secret {secret_name} verified in target namespace {target_namespace}"
     )
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)

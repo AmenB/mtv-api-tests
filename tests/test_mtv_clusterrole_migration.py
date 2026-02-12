@@ -62,19 +62,6 @@ class TestClusterroleColdMtvMigration:
             target_namespace=target_namespace,
         )
 
-<<<<<<< HEAD
-        for vm_config in prepared_plan["virtual_machines"]:
-            vm = VirtualMachine(
-                client=ocp_admin_client,
-                name=vm_config["name"],
-                namespace=target_namespace,
-            )
-            assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
-            )
-
-=======
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
 @pytest.mark.remote
 @pytest.mark.tier0
@@ -125,19 +112,6 @@ class TestClusterroleWarmMtvMigration:
             target_namespace=target_namespace,
         )
 
-<<<<<<< HEAD
-        for vm_config in prepared_plan["virtual_machines"]:
-            vm = VirtualMachine(
-                client=ocp_admin_client,
-                name=vm_config["name"],
-                namespace=target_namespace,
-            )
-            assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
-            )
-
-=======
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
 @pytest.mark.remote
 @pytest.mark.tier0
@@ -221,20 +195,8 @@ class TestClusterroleConfigmapSecretMigration:
             secret_name=secret_name,
         )
 
-<<<<<<< HEAD
-        for vm_config in prepared_plan["virtual_machines"]:
-            vm = VirtualMachine(
-                client=ocp_admin_client,
-                name=vm_config["name"],
-                namespace=target_namespace,
-            )
-            assert vm.instance.status.printableStatus == VirtualMachine.Status.RUNNING, (
-                f"VM {vm.name} is not Running after migration. Status: {vm.instance.status.printableStatus}"
-            )
-=======
         verify_vms_running(
             ocp_admin_client=ocp_admin_client,
             prepared_plan=prepared_plan,
             target_namespace=target_namespace,
         )
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)

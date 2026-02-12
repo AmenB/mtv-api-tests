@@ -458,16 +458,10 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         PermissionError: If shared directory is a symlink (hijack attempt).
         TimeoutError: If timeout waiting for file lock.
     """
-<<<<<<< HEAD
-    # if env variable VIRTCTL_PATH is set, use it.
-    if os.environ.get("VIRTCTL_PATH"):
-        return Path(os.environ.get("VIRTCTL_PATH"))
-=======
     #if env variable VIRTCTL_PATH is set, use it.
         # if env variable VIRTCTL_PATH is set, use it.
     if virtctl_env_path := os.environ.get("VIRTCTL_PATH"):
         return Path(virtctl_env_path)
->>>>>>> 629918e (refactor: Address CodeRabbit review for MTV-3129 ClusterRole tests)
 
     # Get cluster version for versioned caching
     cluster_version = get_cluster_version(ocp_admin_client)
