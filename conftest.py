@@ -842,7 +842,7 @@ def clusterrole_destination_ocp_provider(
         namespace=target_namespace,
     )
 
-    def _has_token():
+    def _has_token() -> str | None:
         token_secret_ref.wait()
         return (token_secret_ref.instance.data or {}).get("token")
 
