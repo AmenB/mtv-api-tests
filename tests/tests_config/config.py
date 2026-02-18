@@ -423,6 +423,26 @@ tests_params: dict = {
         "vm_target_namespace": "custom-vm-namespace",
         "multus_namespace": "default",
     },
+    "test_mtv_clusterrole_cold_migration": {
+        "virtual_machines": [
+            {"name": "mtv-tests-rhel8", "guest_agent": True},
+        ],
+        "warm_migration": False,
+    },
+    "test_mtv_clusterrole_warm_migration": {
+        "virtual_machines": [
+            {
+                "name": "mtv-tests-rhel8",
+                "source_vm_power": "on",
+                "guest_agent": True,
+            },
+        ],
+        "warm_migration": True,
+    },
+    "test_mtv_clusterrole_cold_migration_with_scc": {
+        "virtual_machines": [{"name": "mtv-tests-rhel8", "source_vm_power": "on", "guest_agent": True}],
+        "warm_migration": False,
+    },
     "test_copyoffload_scale_migration": {
         "virtual_machines": [
             {

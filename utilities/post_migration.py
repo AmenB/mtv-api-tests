@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import ipaddress
 import tempfile
+import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import go_template
 import jc
@@ -14,6 +15,7 @@ from ocp_resources.network_map import NetworkMap
 from ocp_resources.provider import Provider
 from ocp_resources.secret import Secret
 from ocp_resources.storage_map import StorageMap
+from ocp_resources.virtual_machine import VirtualMachine
 from packaging.version import InvalidVersion, Version
 from paramiko.ssh_exception import AuthenticationException, ChannelException, NoValidConnectionsError, SSHException
 from pyhelper_utils.exceptions import CommandExecFailed
@@ -27,7 +29,13 @@ from libs.providers.rhv import OvirtProvider
 from utilities.ssh_utils import SSHConnectionManager
 from utilities.utils import get_cluster_version, get_value_from_py_config, rhv_provider
 
+if TYPE_CHECKING:
+    from kubernetes.dynamic import DynamicClient
+
 LOGGER = get_logger(name=__name__)
+
+VM_RUNNING_TIMEOUT = 300
+VM_RUNNING_POLL_INTERVAL = 5
 
 # Kubernetes resource name limits
 KUBERNETES_MAX_NAME_LENGTH: int = 63
@@ -1308,3 +1316,55 @@ def check_vms(
 
     if should_fail:
         pytest.fail("Some of the VMs did not match")
+
+
+def verify_vms_running(
+    ocp_admin_client: "DynamicClient",
+    prepared_plan: dict[str, Any],
+    target_namespace: str,
+) -> None:
+    """Assert each VM in the plan is Running in the target namespace.
+
+    Waits for each VM resource to exist, then polls printableStatus until it
+    reaches Running. VMs typically transition through Provisioning -> Starting
+    -> Running after migration. The total per-VM budget is VM_RUNNING_TIMEOUT
+    seconds, shared between the initial wait for the resource to exist and the
+    subsequent status polling.
+
+    Args:
+        ocp_admin_client (DynamicClient): OpenShift/Kubernetes client.
+        prepared_plan (dict[str, Any]): Plan configuration with virtual_machines list.
+        target_namespace (str): Target namespace to check VMs in.
+
+    Raises:
+        AssertionError: If any VM does not reach Running status within the timeout.
+    """
+    for vm_config in prepared_plan["virtual_machines"]:
+        vm = VirtualMachine(
+            client=ocp_admin_client,
+            name=vm_config["name"],
+            namespace=target_namespace,
+        )
+        start = time.monotonic()
+        vm.wait(timeout=VM_RUNNING_TIMEOUT)
+        elapsed = time.monotonic() - start
+        remaining = max(VM_RUNNING_TIMEOUT - elapsed, 10)
+        LOGGER.info(f"VM {vm.name} resource exists, waiting for Running status")
+        last_status: str | None = None
+        try:
+            for sample in TimeoutSampler(
+                wait_timeout=remaining,
+                sleep=VM_RUNNING_POLL_INTERVAL,
+                func=lambda _vm=vm: _vm.instance.status.printableStatus,
+            ):
+                if sample == VirtualMachine.Status.RUNNING:
+                    LOGGER.info(f"VM {vm.name} reached Running status")
+                    break
+                if sample != last_status:
+                    LOGGER.info(f"VM {vm.name} status: {sample}, waiting for Running")
+                    last_status = sample
+        except TimeoutExpiredError:
+            raise AssertionError(
+                f"VM {vm.name} did not reach Running status within {VM_RUNNING_TIMEOUT}s. "
+                f"Last observed status: {last_status}"
+            ) from None

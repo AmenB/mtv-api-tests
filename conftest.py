@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -18,6 +19,9 @@ from kubernetes.dynamic.exceptions import NotFoundError
 
 if TYPE_CHECKING:
     from kubernetes.dynamic import DynamicClient
+
+from ocp_resources.cluster_role_binding import ClusterRoleBinding
+from ocp_resources.role_binding import RoleBinding
 from ocp_resources.forklift_controller import ForkliftController
 from ocp_resources.namespace import Namespace
 from ocp_resources.network_attachment_definition import NetworkAttachmentDefinition
@@ -26,12 +30,13 @@ from ocp_resources.pod import Pod
 from ocp_resources.provider import Provider
 from ocp_resources.resource import ResourceEditor
 from ocp_resources.secret import Secret
+from ocp_resources.service_account import ServiceAccount
 from ocp_resources.storage_class import StorageClass
 from ocp_resources.storage_profile import StorageProfile
 from ocp_resources.virtual_machine import VirtualMachine
 from pytest_harvest import get_fixture_store
 from pytest_testconfig import config as py_config
-from timeout_sampler import TimeoutSampler
+from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from exceptions.exceptions import (
     ForkliftPodsNotRunningError,
@@ -461,7 +466,7 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         ocp_admin_client (DynamicClient): OpenShift cluster client for accessing
             the cluster to download the virtctl binary.
 
-    Returns:
+    Returns:F
         Path: Path to the downloaded virtctl binary.
 
     Raises:
@@ -470,6 +475,10 @@ def virtctl_binary(ocp_admin_client: "DynamicClient") -> Path:
         PermissionError: If shared directory is a symlink (hijack attempt).
         TimeoutError: If timeout waiting for file lock.
     """
+    # if env variable VIRTCTL_PATH is set, use it.
+    if virtctl_env_path := os.environ.get("VIRTCTL_PATH"):
+        return Path(virtctl_env_path)
+
     # Get cluster version for versioned caching
     cluster_version = get_cluster_version(ocp_admin_client)
 
@@ -785,6 +794,166 @@ def destination_ocp_provider(fixture_store, destination_ocp_secret, ocp_admin_cl
         provider_type=Provider.ProviderType.OPENSHIFT,
     )
     yield OCPProvider(ocp_resource=provider, fixture_store=fixture_store)
+
+
+# Existing ClusterRole name from operator/PR - test verifies migration with this role only.
+# Equivalent to: oc create clusterrolebinding ... --clusterrole=forklift-migrator-role
+FORKLIFT_MIGRATOR_ROLE_NAME = "forklift-migrator-role"
+
+
+@pytest.fixture(scope="session")
+def clusterrole_destination_ocp_provider(
+    fixture_store: dict[str, Any],
+    ocp_admin_client: "DynamicClient",
+    session_uuid: str,
+    target_namespace: str,
+) -> OCPProvider:
+    """Create a token-based OCP provider using the existing forklift-migrator-role and a fresh SA.
+
+    Verifies the flow:
+      1. Create a fresh ServiceAccount (in target namespace)
+      2. Bind it ONLY to the existing ClusterRole forklift-migrator-role (from operator/PR)
+      3. Create a token for that SA (equivalent to: oc create token <sa> -n <ns>)
+      4. Create Forklift Provider CR using that token
+
+    Does NOT create the ClusterRole; forklift-migrator-role must already exist in the cluster.
+
+    Args:
+        fixture_store (dict[str, Any]): Fixture store for resource tracking and teardown.
+        ocp_admin_client (DynamicClient): OpenShift DynamicClient for cluster operations.
+        session_uuid (str): Unique session identifier for resource naming.
+        target_namespace (str): Namespace for provider resources.
+
+    Returns:
+        OCPProvider: Token-based OCP provider bound to forklift-migrator-role.
+
+    Raises:
+        ValueError: If the SA token is not populated within 60s.
+    """
+    sa_name = f"{session_uuid}-forklift-migrator-sa"
+    binding_name = f"{session_uuid}-forklift-migrator-binding"
+    token_secret_name = f"{session_uuid}-clusterrole-token"
+    provider_name = f"{session_uuid}-clusterrole-destination-ocp-provider"
+
+    # 1. Create a fresh ServiceAccount in target namespace
+    create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=ServiceAccount,
+        name=sa_name,
+        namespace=target_namespace,
+    )
+
+    # 2. Bind it ONLY to the existing forklift-migrator-role (from PR)
+    cluster_role_binding = create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=ClusterRoleBinding,
+        name=binding_name,
+        cluster_role=FORKLIFT_MIGRATOR_ROLE_NAME,
+        subjects=[{"kind": "ServiceAccount", "name": sa_name, "namespace": target_namespace}],
+    )
+    cluster_role_binding.wait()
+
+    # Token secret: create Secret with type service-account-token so cluster populates token
+    create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=Secret,
+        name=token_secret_name,
+        namespace=target_namespace,
+        type="kubernetes.io/service-account-token",
+        annotations={"kubernetes.io/service-account.name": sa_name},
+    )
+
+    # Wait for token to be populated (controller fills it asynchronously)
+    token_secret_ref = Secret(
+        client=ocp_admin_client,
+        name=token_secret_name,
+        namespace=target_namespace,
+    )
+
+    def _has_token() -> str | None:
+        token_secret_ref.wait()
+        return (token_secret_ref.instance.data or {}).get("token")
+
+    token_b64 = None
+    try:
+        for sample in TimeoutSampler(wait_timeout=60, sleep=2, func=_has_token):
+            if sample:
+                token_b64 = sample
+                break
+        if not token_b64:
+            raise ValueError(
+                f"Token was not populated in Secret {token_secret_name} for ServiceAccount {sa_name} within 60s"
+            )
+    except TimeoutExpiredError:
+        raise ValueError(
+            f"Token was not populated in Secret {token_secret_name} for ServiceAccount {sa_name} within 60s"
+        ) from None
+
+    token_value = base64.b64decode(token_b64).decode("utf-8")
+
+    # Provider secret (Forklift expects "token" and "insecureSkipVerify")
+    provider_secret = create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=Secret,
+        name=f"{provider_name}-secret",
+        namespace=target_namespace,
+        string_data={"token": token_value, "insecureSkipVerify": "true"},
+    )
+
+    # Provider CR
+    provider = create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=Provider,
+        name=provider_name,
+        namespace=target_namespace,
+        secret_name=provider_secret.name,
+        secret_namespace=provider_secret.namespace,
+        url=ocp_admin_client.configuration.host,
+        provider_type=Provider.ProviderType.OPENSHIFT,
+    )
+
+    return OCPProvider(ocp_resource=provider, fixture_store=fixture_store)
+
+
+@pytest.fixture(scope="class")
+def forklift_scc_binding(
+    fixture_store: dict[str, Any],
+    ocp_admin_client: "DynamicClient",
+    session_uuid: str,
+    target_namespace: str,
+) -> RoleBinding:
+    """Bind forklift-controller-scc SCC to the default ServiceAccount in target namespace.
+
+    Equivalent to: oc adm policy add-scc-to-user forklift-controller-scc -z default -n <namespace>
+
+    Args:
+        fixture_store (dict[str, Any]): Fixture store for resource tracking and teardown.
+        ocp_admin_client (DynamicClient): OpenShift DynamicClient for cluster operations.
+        session_uuid (str): Unique session identifier for resource naming.
+        target_namespace (str): Namespace for the RoleBinding.
+
+    Returns:
+        RoleBinding: The created RoleBinding resource.
+    """
+    return create_and_store_resource(
+        client=ocp_admin_client,
+        fixture_store=fixture_store,
+        resource=RoleBinding,
+        name=f"{session_uuid}-forklift-scc-binding",
+        namespace=target_namespace,
+        role_ref_kind="ClusterRole",
+        role_ref_name="system:openshift:scc:forklift-controller-scc",
+        subjects_kind="ServiceAccount",
+        # Forklift migration pods run under the namespace's 'default' SA,
+        # not the provider's token SA, so the SCC must be bound to 'default'.
+        subjects_name="default",
+        subjects_namespace=target_namespace,
+    )
 
 
 @pytest.fixture(scope="class")
