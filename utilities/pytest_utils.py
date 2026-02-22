@@ -575,7 +575,7 @@ def _apply_analysis_to_xml(
     analysis_map: dict[tuple[str, str], dict[str, Any]],
     html_report_url: str = "",
 ) -> None:
-    """Apply AI analysis results to JUnit XML testcase elements.
+    """Apply AI analysis results and HTML report URL to JUnit XML.
 
     Uses exact (classname, name) matching since failures are extracted from
     the same XML file, guaranteeing identical attribute values.
