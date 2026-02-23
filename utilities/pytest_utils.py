@@ -461,11 +461,11 @@ def enrich_junit_xml(session: pytest.Session) -> None:
         "ai_model": ai_model,
     }
 
-    analysis_map = _fetch_analysis_from_server(server_url=server_url, payload=payload)
-    if not analysis_map:
+    analysis_map, html_report_url = _fetch_analysis_from_server(server_url=server_url, payload=payload)
+    if not analysis_map and not html_report_url:
         return
 
-    _apply_analysis_to_xml(xml_path=xml_path, analysis_map=analysis_map)
+    _apply_analysis_to_xml(xml_path=xml_path, analysis_map=analysis_map, html_report_url=html_report_url)
 
 
 def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
@@ -506,7 +506,9 @@ def _extract_failures_from_xml(xml_path: Path) -> list[dict[str, str]]:
     return failures
 
 
-def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+def _fetch_analysis_from_server(
+    server_url: str, payload: dict[str, Any]
+) -> tuple[dict[tuple[str, str], dict[str, Any]], str]:
     """Send collected failures to the JJI server and return the analysis map.
 
     Args:
@@ -514,8 +516,12 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
         payload (dict[str, Any]): Request payload containing failures and AI config.
 
     Returns:
-        dict[tuple[str, str], dict[str, Any]]: Mapping of (classname, test_name) to
-            analysis results. Returns empty dict on request failure.
+        tuple[dict[tuple[str, str], dict[str, Any]], str]: Two-element tuple of:
+            analysis_map: Mapping of (classname, test_name) to analysis results.
+            html_report_url: URL from server response, or constructed from
+                job_id and server_url, or empty string if neither is available.
+
+        Returns ({}, "") on request failure.
     """
     try:
         timeout_value = int(os.environ.get("JJI_TIMEOUT", "600"))
@@ -539,7 +545,15 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
             except Exception as detail_exc:
                 LOGGER.debug(f"Could not extract response detail: {detail_exc}")
         LOGGER.error(f"Server request failed: {exc}{error_detail}")
-        return {}
+        return {}, ""
+
+    job_id = result.get("job_id", "")
+    html_report_url = result.get("html_report_url") or (
+        f"{server_url.rstrip('/')}/results/{job_id}.html" if job_id else ""
+    )
+    if html_report_url and not html_report_url.startswith(("http://", "https://")):
+        LOGGER.warning(f"jenkins-job-insight: Invalid html_report_url scheme, ignoring: {html_report_url}")
+        html_report_url = ""
 
     analysis_map: dict[tuple[str, str], dict[str, Any]] = {}
     for failure in result.get("failures", []):
@@ -553,11 +567,15 @@ def _fetch_analysis_from_server(server_url: str, payload: dict[str, Any]) -> dic
             else:
                 analysis_map[("", test_name)] = analysis
 
-    return analysis_map
+    return analysis_map, html_report_url
 
 
-def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], dict[str, Any]]) -> None:
-    """Apply AI analysis results to JUnit XML testcase elements.
+def _apply_analysis_to_xml(
+    xml_path: Path,
+    analysis_map: dict[tuple[str, str], dict[str, Any]],
+    html_report_url: str = "",
+) -> None:
+    """Apply AI analysis results and HTML report URL to JUnit XML.
 
     Uses exact (classname, name) matching since failures are extracted from
     the same XML file, guaranteeing identical attribute values.
@@ -567,6 +585,7 @@ def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], d
         xml_path (Path): Path to the JUnit XML report file.
         analysis_map (dict[tuple[str, str], dict[str, Any]]): Mapping of
             (classname, test_name) to analysis results.
+        html_report_url (str): URL to the HTML report, added as a testsuite-level property.
 
     Raises:
         Exception: Re-raises any exception from XML parsing/writing after
@@ -590,6 +609,16 @@ def _apply_analysis_to_xml(xml_path: Path, analysis_map: dict[tuple[str, str], d
             LOGGER.warning(
                 f"jenkins-job-insight: {len(unmatched)} analysis results did not match any testcase: {unmatched}"
             )
+
+        # Add html_report_url to the first testsuite only (pytest JUnit XML does not use namespaces)
+        if html_report_url:
+            first_testsuite = next(tree.iter("testsuite"), None)
+            if first_testsuite is not None:
+                ts_props = first_testsuite.find("properties")
+                if ts_props is None:
+                    ts_props = ET.Element("properties")
+                    first_testsuite.insert(0, ts_props)
+                _add_property(ts_props, "html_report_url", html_report_url)
 
         tree.write(str(xml_path), encoding="unicode", xml_declaration=True)
         backup_path.unlink()  # Success - remove backup
