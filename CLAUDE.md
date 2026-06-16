@@ -894,6 +894,7 @@ Class-scoped teardown fixture that cleans up migrated VMs after each test class 
 | Marker                  | Purpose                               |
 | ----------------------- | ------------------------------------- |
 | `tier0`                 | Core functionality (smoke tests)      |
+| `tier1`                 | Extended functionality tests          |
 | `warm`                  | Warm migration tests                  |
 | `remote`                | Remote cluster tests                  |
 | `copyoffload`           | Copy-offload (XCOPY) tests            |
