@@ -55,7 +55,7 @@ dependencies = [
   "pytest-profiling>=1.8.1",
   "semver>=3.0.4",
   "typer>=0.15.1",
-  "openshift-python-wrapper @ git+https://github.com/AmenB/openshift-python-wrapper@feat/hook-aap-support",
+  "openshift-python-wrapper>=11.0.53",
   "pytest-jira>=0.3.23",
   "rich>=14.0.0",
   "python-rrmngmnt>=0.2.0",
@@ -70,9 +70,6 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["cli", "utilities", "libs", "exceptions"]
