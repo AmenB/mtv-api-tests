@@ -183,6 +183,7 @@ def create_hook_for_plan(
         resource=Hook,
         namespace=target_namespace,
         playbook=playbook,
+        image="quay.io/konveyor/hook-runner:latest",
     )
 
     return hook.name, hook.namespace
