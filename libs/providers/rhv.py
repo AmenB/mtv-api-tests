@@ -175,6 +175,17 @@ class OvirtProvider(BaseProvider):
                 condition_func=lambda: vm_service.get().status == types.VmStatus.DOWN,
             )
 
+    def is_vm_powered_on(self, vm: types.Vm) -> bool:
+        """Check whether a VM is currently powered on.
+
+        Args:
+            vm (types.Vm): The VM to check
+
+        Returns:
+            bool: True if the VM is powered on, False otherwise
+        """
+        return self.vms_services.vm_service(vm.id).get().status == VmStatus.UP
+
     def vm_dict(self, **kwargs: Any) -> dict[str, Any]:
         # If VM object already provided, use it directly (avoids re-searching for cloned VMs)
         source_vm = kwargs.get("provider_vm_api")
@@ -337,17 +348,6 @@ class OvirtProvider(BaseProvider):
         return templates[0]
 
     def get_template_networks(self, template_names: list[str]) -> list[dict[str, str]]:
-        """Get unique network mappings for RHV templates.
-
-        Args:
-            template_names: List of template names to query
-
-        Returns:
-            List of network mappings in format [{"name": "network1"}, {"name": "network2"}]
-
-        Raises:
-            ValueError: If no networks found for any of the templates
-        """
         networks_seen = set()
         mappings = []
 
@@ -376,24 +376,15 @@ class OvirtProvider(BaseProvider):
         names: list[str],
         inventory: ForkliftInventory,
     ) -> list[dict[str, str]]:
-        """Use existing get_template_networks() for RHV templates.
+        return self.get_template_networks(template_names=names)
 
-        Args:
-            names: List of template names to query
-            inventory: Forklift inventory instance (ignored for RHV, uses direct template API)
+    def supports_skip_clone(self) -> bool:
+        """RHV plan names are templates, not deployable VMs, so cloning cannot be skipped.
 
         Returns:
-            List of network mappings
-
-        Raises:
-            ValueError: If no networks found for any of the templates
-
-        Note:
-            The inventory parameter is required for API compatibility but is ignored for RHV.
-            RHV uses direct template API instead of Forklift inventory.
+            bool: Always False for RHV.
         """
-        # Inventory is ignored for RHV - we use direct template API
-        return self.get_template_networks(template_names=names)
+        return False
 
     def clone_vm(
         self,

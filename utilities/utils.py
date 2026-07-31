@@ -225,18 +225,92 @@ def background(func):
     return wrapper
 
 
+def get_per_nic_networks(
+    source_provider: BaseProvider,
+    source_provider_inventory: ForkliftInventory,
+    vms: list[str],
+) -> list[dict[str, str]]:
+    """Collect one network entry per NIC across all VMs without deduplication.
+
+    Delegates to the provider-specific ``vms_networks_mappings()`` with
+    ``deduplicate=False`` so each NIC produces its own entry — even when
+    multiple NICs share the same source network.
+
+    Note:
+        RHV templates are not present in the Forklift inventory - only cloned
+        VMs are (see ``OvirtProvider.get_vm_or_template_networks()``). This
+        function queries the inventory directly because ``deduplicate=False``
+        has no equivalent on ``BaseProvider.get_vm_or_template_networks()``,
+        so it only supports RHV names that already exist as VMs in inventory
+        (i.e. cloned VMs), not un-cloned template names.
+
+    Args:
+        source_provider (BaseProvider): Source provider instance, used to raise a
+            clear error for the unsupported RHV-template case.
+        source_provider_inventory (ForkliftInventory): Source provider inventory.
+        vms (list[str]): VM names to query.
+
+    Returns:
+        list[dict[str, str]]: Network entries, one per NIC (may contain duplicates).
+
+    Raises:
+        ValueError: If no network mappings found for the given VMs, or if the
+            source provider is RHV and any of the given names are templates not
+            yet present in the inventory as cloned VMs.
+    """
+    if isinstance(source_provider, OvirtProvider):
+        missing_vms = [vm for vm in vms if vm not in source_provider_inventory.vms_names]
+        if missing_vms:
+            raise ValueError(
+                f"per_nic_network_map is not supported for RHV templates {missing_vms}: RHV templates "
+                "are not present in the Forklift inventory, and get_per_nic_networks() requires "
+                "non-deduplicated, inventory-based network data. Clone the templates to VMs before "
+                "requesting per-NIC network mappings."
+            )
+
+    return source_provider_inventory.vms_networks_mappings(vms=vms, deduplicate=False)
+
+
 def gen_network_map_list(
+    source_provider: BaseProvider,
     source_provider_inventory: ForkliftInventory,
     target_namespace: str,
     vms: list[str],
     multus_network_name: dict[str, str],
     pod_only: bool = False,
+    per_nic_network_map: bool = False,
 ) -> list[dict[str, dict[str, str]]]:
+    """Build network map entries from source provider inventory.
+
+    Args:
+        source_provider (BaseProvider): Source provider instance. Used to resolve
+            networks via ``get_vm_or_template_networks()``, which handles the
+            RHV-template case (templates aren't present in Forklift inventory).
+        source_provider_inventory (ForkliftInventory): Source provider inventory.
+        target_namespace (str): Target namespace.
+        vms (list[str]): VM names to query.
+        multus_network_name (dict[str, str]): Multus network name and namespace.
+        pod_only (bool): Map all networks to pod network.
+        per_nic_network_map (bool): Create one map entry per NIC without deduplication.
+
+    Returns:
+        list[dict[str, dict[str, str]]]: Network map entries.
+
+    Raises:
+        ValueError: If no networks are found for the given VMs.
+    """
     network_map_list: list[dict[str, dict[str, str]]] = []
     _destination_pod: dict[str, str] = {"type": "pod"}
     multus_counter = 1
 
-    for index, network in enumerate(source_provider_inventory.vms_networks_mappings(vms=vms)):
+    if per_nic_network_map:
+        networks = get_per_nic_networks(
+            source_provider=source_provider, source_provider_inventory=source_provider_inventory, vms=vms
+        )
+    else:
+        networks = source_provider_inventory.vms_networks_mappings(vms=vms)
+
+    for index, network in enumerate(networks):
         if pod_only or index == 0:
             # First network or pod_only mode → pod network
             _destination = _destination_pod
