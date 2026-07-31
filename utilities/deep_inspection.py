@@ -1,9 +1,19 @@
+"""Utilities for Deep Inspection (DI) Conversion CR lifecycle.
+
+Covers standalone DI (user-created CRs) and plan-driven DI (auto-created
+during migration). Provides CR creation, polling, result verification,
+and mid-migration capture via on_status_poll callbacks.
+"""
+
 from __future__ import annotations
 
 import base64
+import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ocp_resources.conversion import Conversion
+from ocp_resources.plan import Plan
 from ocp_resources.pod import Pod
 from ocp_resources.resource import NotFoundError
 from ocp_resources.secret import Secret
@@ -30,6 +40,8 @@ DI_SNAPSHOT_CREATION_TIMEOUT = 120
 DI_POD_CREATION_TIMEOUT = 120
 DI_POD_CLEANUP_TIMEOUT = 60
 DI_SNAPSHOT_CLEANUP_TIMEOUT = 180
+DI_RESULTS_KEY = "di_results"
+DI_CAPTURE_POLL_INTERVAL_SECONDS = 10
 
 
 def create_di_connection_secret(
@@ -319,42 +331,90 @@ def wait_for_conversion_complete(conversion: Conversion, timeout: int) -> None:
         ) from err
 
 
+def _validate_inspection_result(results: dict[str, Any] | None, vm_name: str, context: str) -> None:
+    """Validate inspectionResult data from a DI Conversion CR.
+
+    Args:
+        results (dict[str, Any] | None): The inspectionResult dict.
+        vm_name (str): VM name for error context.
+        context (str): Additional context (e.g., conversion name or plan name).
+
+    Raises:
+        ValueError: If results are missing or incomplete.
+    """
+    if not results:
+        raise ValueError(f"{context}, VM '{vm_name}': inspectionResult is empty")
+
+    os_info = results.get("osInfo")
+    if not os_info or not os_info.get("name"):
+        raise ValueError(f"{context}, VM '{vm_name}': missing osInfo or osInfo.name")
+
+    filesystems = results.get("filesystems")
+    if not filesystems:
+        raise ValueError(f"{context}, VM '{vm_name}': missing filesystems")
+
+    passed = results.get("allChecksPassed")
+    if not isinstance(passed, bool):
+        raise ValueError(f"{context}, VM '{vm_name}': allChecksPassed is not a boolean: {passed}")
+
+    LOGGER.info(
+        f"DI verified for VM '{vm_name}': allChecksPassed={passed}, "
+        f"os={os_info.get('name')} {os_info.get('version', '')}, filesystems={len(filesystems)}"
+    )
+
+
 def verify_di_results(conversion: Conversion, vm_name: str) -> None:
     """Verify Deep Inspection results on a completed Conversion CR.
-
-    Checks that the inspection produced valid results including OS info
-    and filesystem data. Uses the source VM name for error context.
 
     Args:
         conversion (Conversion): A Succeeded Conversion CR.
         vm_name (str): Source VM name for error context.
 
     Raises:
-        AssertionError: If results are missing or incomplete.
+        ValueError: If results are missing or incomplete.
     """
     status = conversion.instance.status
-    assert status, f"VM '{vm_name}': Conversion '{conversion.name}' has no status"
-
-    results = status.get("inspectionResult")
-    assert results, f"VM '{vm_name}': Conversion '{conversion.name}' has no inspectionResult in status"
-
-    os_info = results.get("osInfo")
-    assert os_info and os_info.get("name"), (
-        f"VM '{vm_name}': Conversion '{conversion.name}' inspectionResult missing osInfo or osInfo.name"
+    if not status:
+        raise ValueError(f"VM '{vm_name}': Conversion '{conversion.name}' has no status")
+    _validate_inspection_result(
+        results=status.get("inspectionResult"),
+        vm_name=vm_name,
+        context=f"Conversion '{conversion.name}'",
     )
 
-    filesystems = results.get("filesystems")
-    assert filesystems, f"VM '{vm_name}': Conversion '{conversion.name}' inspectionResult missing filesystems"
 
-    passed = results.get("allChecksPassed")
-    assert isinstance(passed, bool), (
-        f"VM '{vm_name}': Conversion '{conversion.name}' allChecksPassed is not a boolean: {passed}"
+def get_plan_conversion_crs(
+    plan_resource: Plan,
+    conversion_type: str | None = None,
+) -> list[Conversion]:
+    """Find Conversion CRs created by a plan, queried by plan UID label.
+
+    Plan-created CRs have labels: plan=<Plan UID>, conversion-type=<type>.
+    Currently only handles DeepInspection type.
+
+    Args:
+        plan_resource: The Plan CR whose UID is used for the label selector.
+        conversion_type: Optional filter (e.g., "DeepInspection"). If None, returns all types.
+
+    Returns:
+        List of matching Conversion CR objects.
+    """
+    plan_uid = plan_resource.instance.metadata.uid
+    label_parts = [f"plan={plan_uid}"]
+    if conversion_type:
+        label_parts.append(f"conversion-type={conversion_type}")
+    label_selector = ",".join(label_parts)
+
+    LOGGER.debug(
+        f"Querying Conversion CRs with label_selector='{label_selector}' in namespace '{plan_resource.namespace}'"
     )
 
-    LOGGER.info(
-        f"DI results for VM '{vm_name}': allChecksPassed={passed}, "
-        f"os={os_info.get('name')} {os_info.get('version', '')}, "
-        f"filesystems={len(filesystems)}"
+    return list(
+        Conversion.get(
+            client=plan_resource.client,
+            namespace=plan_resource.namespace,
+            label_selector=label_selector,
+        )
     )
 
 
@@ -550,3 +610,115 @@ def wait_for_di_snapshot_cleanup(
             f"DI snapshot '{DI_SNAPSHOT_NAME}' still present on VM '{vm_name}' "
             f"{timeout}s after cancel. All snapshots: {remaining}"
         ) from err
+
+
+def create_di_capture_callback(
+    plan: Plan,
+    fixture_store: dict[str, Any],
+) -> Callable[[str], None]:
+    """Create callback that captures DI CR results into fixture_store during migration.
+
+    Returns a callback compatible with wait_for_migration_complate's on_status_poll.
+    Accumulates per-VM DI results across polls so that multi-VM plans where VMs
+    finish DI at different times are all captured.
+
+    Args:
+        plan (Plan): Plan CR whose DI CRs to capture.
+        fixture_store (dict[str, Any]): Store where captured data is saved under DI_RESULTS_KEY.
+
+    Returns:
+        Callable[[str], None]: Callback that accepts migration status string.
+    """
+
+    fixture_store.pop(DI_RESULTS_KEY, None)
+    last_poll_time = 0.0
+    poll_interval = DI_CAPTURE_POLL_INTERVAL_SECONDS
+    captured_vm_names: set[str] = set()
+    was_executing = False
+
+    def _try_capture() -> None:
+        """Query DI CRs and capture any newly-Succeeded results."""
+        try:
+            conversions = get_plan_conversion_crs(plan_resource=plan, conversion_type=CONVERSION_TYPE_DEEP_INSPECTION)
+        except NotFoundError:
+            LOGGER.debug(f"Plan or Conversion CR not found during DI capture for plan '{plan.name}'")
+            return
+
+        new_results = []
+        for conv in conversions:
+            try:
+                vm_name = (conv.instance.spec.vm or {}).get("name", conv.name)
+                if vm_name in captured_vm_names:
+                    continue
+                conv_status = conv.instance.status
+                if not conv_status or conv_status.get("phase") != Conversion.Status.SUCCEEDED:
+                    continue
+                new_results.append({
+                    "vm_name": vm_name,
+                    "inspectionResult": dict(conv_status.get("inspectionResult") or {}),
+                })
+                captured_vm_names.add(vm_name)
+            except NotFoundError:
+                LOGGER.debug(f"Conversion CR '{conv.name}' disappeared during DI capture, skipping")
+
+        if new_results:
+            fixture_store.setdefault(DI_RESULTS_KEY, []).extend(new_results)
+            LOGGER.info(f"Captured DI results for {len(new_results)} VM(s) from plan '{plan.name}'")
+
+    def _capture(status: str) -> None:
+        """Capture DI CR results for one migration status poll.
+
+        Args:
+            status (str): Current migration status from migration polling.
+        """
+        nonlocal last_poll_time, was_executing
+
+        if status != Plan.Status.EXECUTING:
+            if was_executing:
+                _try_capture()
+                was_executing = False
+            return
+
+        was_executing = True
+        now = time.monotonic()
+        if now - last_poll_time < poll_interval:
+            return
+        last_poll_time = now
+
+        _try_capture()
+
+    return _capture
+
+
+def verify_captured_di_results(
+    di_results: list[dict[str, Any]],
+    plan_name: str,
+    expected_vm_names: set[str],
+) -> None:
+    """Verify DI results captured during migration.
+
+    Args:
+        di_results (list[dict[str, Any]]): Captured DI data from fixture_store[DI_RESULTS_KEY].
+        plan_name (str): Plan name for error context.
+        expected_vm_names (set[str]): Names of VMs the plan migrated; every one must have a captured result.
+
+    Raises:
+        ValueError: If results are missing or incomplete.
+    """
+    if not di_results:
+        raise ValueError(
+            f"Plan '{plan_name}': No DI data captured during migration. DI CRs may have been deleted before capture."
+        )
+    captured_vm_names = {entry["vm_name"] for entry in di_results}
+    missing_vm_names = expected_vm_names - captured_vm_names
+    if missing_vm_names:
+        raise ValueError(
+            f"Plan '{plan_name}': DI results missing for VM(s) {sorted(missing_vm_names)}. "
+            f"Captured: {sorted(captured_vm_names)}"
+        )
+    for entry in di_results:
+        _validate_inspection_result(
+            results=entry["inspectionResult"],
+            vm_name=entry["vm_name"],
+            context=f"Plan '{plan_name}'",
+        )

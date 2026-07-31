@@ -3,9 +3,11 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from ocp_resources.network_map import NetworkMap
 from ocp_resources.plan import Plan
+from ocp_resources.provider import Provider
 from ocp_resources.storage_map import StorageMap
 from pytest_testconfig import config as py_config
 
+from utilities.deep_inspection import DI_RESULTS_KEY, create_di_capture_callback
 from utilities.migration_utils import get_cutover_value
 from utilities.mtv_migration import (
     create_plan_resource,
@@ -196,6 +198,7 @@ class TestWarmMigrationComprehensive:
         fixture_store: dict[str, Any],
         ocp_admin_client: "DynamicClient",
         target_namespace: str,
+        source_provider: "BaseProvider",
     ) -> None:
         """Execute warm migration with cutover.
 
@@ -203,20 +206,28 @@ class TestWarmMigrationComprehensive:
             fixture_store: Fixture store for resource tracking
             ocp_admin_client: OpenShift admin client
             target_namespace: Target namespace for migration
+            source_provider: Source provider, used to gate DI capture to vSphere
 
         Returns:
             None
         """
+        di_callback = (
+            create_di_capture_callback(plan=self.plan_resource, fixture_store=fixture_store)
+            if source_provider.type == Provider.ProviderType.VSPHERE
+            else None
+        )
         execute_migration(
             ocp_admin_client=ocp_admin_client,
             fixture_store=fixture_store,
             plan=self.plan_resource,
             target_namespace=target_namespace,
             cut_over=get_cutover_value(),
+            on_status_poll=di_callback,
         )
 
     def test_check_vms(
         self,
+        fixture_store: dict[str, Any],
         prepared_plan: dict[str, Any],
         source_provider: "BaseProvider",
         destination_provider: "OCPProvider",
@@ -229,6 +240,7 @@ class TestWarmMigrationComprehensive:
         """Validate migrated VMs with comprehensive features.
 
         Args:
+            fixture_store: Fixture store for DI result retrieval
             prepared_plan: The prepared migration plan
             source_provider: Source provider instance
             destination_provider: Destination provider instance
@@ -252,4 +264,6 @@ class TestWarmMigrationComprehensive:
             source_provider_inventory=source_provider_inventory,
             vm_ssh_connections=vm_ssh_connections,
             target_vm_labels=target_vm_labels,
+            plan_resource=self.plan_resource,
+            di_results=fixture_store.get(DI_RESULTS_KEY),
         )
