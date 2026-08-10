@@ -782,6 +782,19 @@ tests_params: dict = {
         ],
         "warm_migration": False,
     },
+    "test_insecure_skip_verify_cold_migration": {
+        "virtual_machines": [
+            {"name": "mtv-tests-rhel8", "guest_agent": True},
+        ],
+        "warm_migration": False,
+        "skip_clone": True,
+    },
+    "test_insecure_skip_verify_cold_migration_rhv": {
+        "virtual_machines": [
+            {"name": "mtv-tests-rhel8", "guest_agent": True},
+        ],
+        "warm_migration": False,
+    },
     "test_upgrade_cold_migration": {
         "virtual_machines": [
             {"name": "mtv-tests-rhel8", "guest_agent": True},
