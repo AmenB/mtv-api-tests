@@ -58,6 +58,7 @@ def start_migration_and_kill_conversion(
         client=ocp_admin_client,
         fixture_store=fixture_store,
         resource=Migration,
+        name=f"{plan.name}-initial",
         namespace=target_namespace,
         plan_name=plan.name,
         plan_namespace=plan.namespace,
