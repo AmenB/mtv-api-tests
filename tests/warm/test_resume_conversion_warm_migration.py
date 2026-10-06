@@ -36,9 +36,39 @@ from utilities.utils import populate_vm_ids
 class TestResumeConversionWarmMigration:
     """Verify resumeConversion recovers a warm migration after conversion failure.
 
-    Simulates conversion failure by killing the virt-v2v pod after disk copy,
-    then creates a resume Migration CR that skips disk copy and re-runs conversion
-    using the preserved PVCs.
+    Purpose/Regression:
+        Verify that a vSphere warm migration whose virt-v2v conversion process
+        fails after disk transfer can resume conversion from preserved PVCs
+        without copying the source disks again.
+
+    Prerequisites:
+        Register connected vSphere and OpenShift providers. Prepare an isolated,
+        disposable, powered-on Linux VM with a guest agent and SSH access. Ensure
+        the destination cluster has accessible storage and network mappings,
+        supports warm migration and resumeConversion, and grants permission to
+        create and inspect Forklift resources and migration pods.
+
+    Test plan:
+        1. Confirm the source VM is visible in inventory, then create StorageMap
+           and NetworkMap resources for its destination storage and network.
+        2. Create a warm Plan for the VM and confirm that the Plan is Ready.
+        3. Start the migration, schedule warm cutover, and wait for disk transfer
+           to complete and its destination PVCs to become Bound; record each PVC UID.
+        4. Terminate the running virt-v2v conversion process and confirm the
+           migration fails during ImageConversion while the PVC UIDs remain unchanged.
+        5. Create a new Migration for the same Plan with resumeConversion enabled
+           and wait for it to succeed using the preserved PVCs.
+        6. Confirm the PVC UIDs remain unchanged, DiskTransfer is not repeated,
+           and the destination VM powers on with guest-agent and SSH connectivity
+           and preserves the expected CPU, memory, disks and network mapping.
+        7. Delete the test Plan, migrations, maps, destination VM and PVCs, and
+           remove the disposable source VM created for the scenario.
+
+    Expected result:
+        The first Migration reports an ImageConversion failure after disk transfer.
+        The resume Migration succeeds, reuses the same Bound PVCs, omits a repeated
+        DiskTransfer step, and produces a usable destination VM. Diagnose failures
+        from the Plan and Migration conditions, VM pipeline, pod logs and PVC UIDs.
     """
 
     storage_map: StorageMap
@@ -284,7 +314,34 @@ class TestResumeConversionWarmMigration:
 )
 @pytest.mark.usefixtures("precopy_interval_forkliftcontroller", "cleanup_migrated_vms")
 class TestResumeConversionIneligible:
-    """Verify resumeConversion fails when no prior conversion failure exists (MTV-6205)."""
+    """Verify resumeConversion rejects a Plan with no failed conversion to resume.
+
+    Purpose/Regression:
+        Verify that resumeConversion is rejected when a warm Plan has no previous
+        migration failure and therefore has no preserved conversion state or PVCs.
+
+    Prerequisites:
+        Register connected vSphere and OpenShift providers. Prepare an isolated,
+        disposable, powered-on Linux VM visible in source inventory. Ensure the
+        destination cluster has accessible storage and network mappings, supports
+        warm migration and resumeConversion, and permits creation and inspection
+        of Forklift resources.
+
+    Test plan:
+        1. Confirm the source VM is visible in inventory, then create StorageMap
+           and NetworkMap resources for its destination storage and network.
+        2. Create a warm Plan for the VM and confirm that the Plan is Ready, but
+           do not start an initial migration.
+        3. Create a Migration for that Plan with resumeConversion enabled and
+           observe the resulting Migration and Plan conditions.
+        4. Confirm the request does not succeed, then delete the test Migration,
+           Plan and maps and remove the disposable source VM.
+
+    Expected result:
+        Forklift rejects the resume request because no failed conversion is
+        available to resume. Diagnose failures from the Migration and Plan
+        conditions and the Forklift controller events/logs.
+    """
 
     storage_map: StorageMap
     network_map: NetworkMap
