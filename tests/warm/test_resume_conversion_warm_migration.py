@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING, Any
+
 import pytest
 from ocp_resources.network_map import NetworkMap
 from ocp_resources.plan import Plan
@@ -14,12 +16,21 @@ from utilities.mtv_migration import (
 )
 from utilities.post_migration import check_vms
 from utilities.resume_conversion import (
+    FailedConversionState,
     execute_resume_migration,
     start_migration_and_kill_conversion,
     verify_pvcs_bound,
     verify_resume_skipped_disk_copy,
 )
 from utilities.utils import populate_vm_ids
+
+if TYPE_CHECKING:
+    from kubernetes.dynamic import DynamicClient
+
+    from libs.base_provider import BaseProvider
+    from libs.forklift_inventory import ForkliftInventory
+    from libs.providers.openshift import OCPProvider
+    from utilities.ssh_utils import SSHConnectionManager
 
 
 @pytest.mark.vsphere
@@ -74,18 +85,18 @@ class TestResumeConversionWarmMigration:
     storage_map: StorageMap
     network_map: NetworkMap
     plan_resource: Plan
-    pre_failure_pvc_uids: dict[str, str]
+    failed_conversion_state: FailedConversionState
 
     def test_create_storagemap(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        source_provider_inventory,
-        target_namespace,
-    ):
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        source_provider_inventory: "ForkliftInventory",
+        target_namespace: str,
+    ) -> None:
         """Create StorageMap resource for migration.
 
         Args:
@@ -111,15 +122,15 @@ class TestResumeConversionWarmMigration:
 
     def test_create_networkmap(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        source_provider_inventory,
-        target_namespace,
-        multus_network_name,
-    ):
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        source_provider_inventory: "ForkliftInventory",
+        target_namespace: str,
+        multus_network_name: dict[str, str],
+    ) -> None:
         """Create NetworkMap resource for migration.
 
         Args:
@@ -130,7 +141,7 @@ class TestResumeConversionWarmMigration:
             destination_provider (BaseProvider): Destination provider instance.
             source_provider_inventory (ForkliftInventory): Source provider inventory.
             target_namespace (str): Target namespace for migration.
-            multus_network_name (str): Name of the multus network.
+            multus_network_name (dict[str, str]): Multus network configuration.
         """
         vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
         self.__class__.network_map = get_network_migration_map(
@@ -147,14 +158,14 @@ class TestResumeConversionWarmMigration:
 
     def test_create_plan(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        target_namespace,
-        source_provider_inventory,
-    ):
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        target_namespace: str,
+        source_provider_inventory: "ForkliftInventory",
+    ) -> None:
         """Create warm migration Plan CR.
 
         Args:
@@ -182,10 +193,10 @@ class TestResumeConversionWarmMigration:
 
     def test_migrate_vms(
         self,
-        fixture_store,
-        ocp_admin_client,
-        target_namespace,
-    ):
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        target_namespace: str,
+    ) -> None:
         """Start warm migration, record PVC UIDs, then kill conversion pod.
 
         Waits for the DiskTransfer pipeline step to complete, snapshots PVC UIDs
@@ -198,7 +209,7 @@ class TestResumeConversionWarmMigration:
             ocp_admin_client (DynamicClient): OpenShift admin client.
             target_namespace (str): Target namespace for migration.
         """
-        self.__class__.pre_failure_pvc_uids = start_migration_and_kill_conversion(
+        self.__class__.failed_conversion_state = start_migration_and_kill_conversion(
             ocp_admin_client=ocp_admin_client,
             fixture_store=fixture_store,
             plan=self.plan_resource,
@@ -210,9 +221,9 @@ class TestResumeConversionWarmMigration:
 
     def test_verify_pvcs_preserved(
         self,
-        ocp_admin_client,
-        target_namespace,
-    ):
+        ocp_admin_client: "DynamicClient",
+        target_namespace: str,
+    ) -> None:
         """Verify PVCs survived the conversion failure with unchanged UIDs.
 
         Compares current PVC UIDs against the baseline recorded before the
@@ -225,18 +236,19 @@ class TestResumeConversionWarmMigration:
         post_failure_pvc_uids = verify_pvcs_bound(
             ocp_admin_client=ocp_admin_client,
             target_namespace=target_namespace,
+            plan_uid=self.failed_conversion_state.plan_uid,
         )
-        assert post_failure_pvc_uids == self.pre_failure_pvc_uids, (
+        assert post_failure_pvc_uids == self.failed_conversion_state.pvc_uids, (
             f"PVC UIDs changed after failure — PVCs were not preserved. "
-            f"Before: {self.pre_failure_pvc_uids}, After: {post_failure_pvc_uids}"
+            f"Before: {self.failed_conversion_state.pvc_uids}, After: {post_failure_pvc_uids}"
         )
 
     def test_resume_migration(
         self,
-        fixture_store,
-        ocp_admin_client,
-        target_namespace,
-    ):
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        target_namespace: str,
+    ) -> None:
         """Resume migration after conversion failure.
 
         Creates a new Migration CR with ``resumeConversion: true``. Forklift
@@ -259,24 +271,25 @@ class TestResumeConversionWarmMigration:
         resumed_pvc_uids = verify_pvcs_bound(
             ocp_admin_client=ocp_admin_client,
             target_namespace=target_namespace,
+            plan_uid=self.failed_conversion_state.plan_uid,
         )
-        assert resumed_pvc_uids == self.pre_failure_pvc_uids, (
+        assert resumed_pvc_uids == self.failed_conversion_state.pvc_uids, (
             f"PVC UIDs changed after resume — PVCs were recreated instead of reused. "
-            f"Before: {self.pre_failure_pvc_uids}, Resumed: {resumed_pvc_uids}"
+            f"Before: {self.failed_conversion_state.pvc_uids}, Resumed: {resumed_pvc_uids}"
         )
         verify_resume_skipped_disk_copy(plan=self.plan_resource)
 
     def test_check_vms(
         self,
-        prepared_plan,
-        source_provider,
-        destination_provider,
-        source_provider_data,
-        target_namespace,
-        source_vms_namespace,
-        source_provider_inventory,
-        vm_ssh_connections,
-    ):
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        source_provider_data: dict[str, Any],  # Any: heterogeneous provider configuration.
+        target_namespace: str,
+        source_vms_namespace: str | None,
+        source_provider_inventory: "ForkliftInventory",
+        vm_ssh_connections: "SSHConnectionManager",
+    ) -> None:
         """Validate migrated VMs after resume.
 
         Args:
@@ -285,9 +298,9 @@ class TestResumeConversionWarmMigration:
             destination_provider (BaseProvider): Destination provider instance.
             source_provider_data (dict[str, Any]): Source provider configuration data.
             target_namespace (str): Target namespace for migration.
-            source_vms_namespace (str): Namespace of source VMs.
+            source_vms_namespace (str | None): Namespace of source VMs, when applicable.
             source_provider_inventory (ForkliftInventory): Source provider inventory.
-            vm_ssh_connections (dict[str, Any]): SSH connections to migrated VMs.
+            vm_ssh_connections (SSHConnectionManager): SSH connections to migrated VMs.
         """
         check_vms(
             plan=prepared_plan,
@@ -313,7 +326,7 @@ class TestResumeConversionWarmMigration:
     ids=["MTV-6205-ineligible-resume"],
 )
 @pytest.mark.usefixtures("precopy_interval_forkliftcontroller", "cleanup_migrated_vms")
-class TestResumeConversionIneligible:
+class TestResumeConversionWarmIneligible:
     """Verify resumeConversion rejects a Plan with no failed conversion to resume.
 
     Purpose/Regression:
@@ -349,15 +362,25 @@ class TestResumeConversionIneligible:
 
     def test_create_storagemap(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        source_provider_inventory,
-        target_namespace,
-    ):
-        """Create StorageMap resource for migration."""
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        source_provider_inventory: "ForkliftInventory",
+        target_namespace: str,
+    ) -> None:
+        """Create StorageMap resource for migration.
+
+        Args:
+            prepared_plan (dict[str, Any]): The prepared migration plan.
+            fixture_store (dict[str, Any]): Fixture store for resource tracking.
+            ocp_admin_client (DynamicClient): OpenShift admin client.
+            source_provider (BaseProvider): Source provider instance.
+            destination_provider (OCPProvider): Destination provider instance.
+            source_provider_inventory (ForkliftInventory): Source provider inventory.
+            target_namespace (str): Target namespace for migration.
+        """
         vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
         self.__class__.storage_map = get_storage_migration_map(
             fixture_store=fixture_store,
@@ -372,16 +395,27 @@ class TestResumeConversionIneligible:
 
     def test_create_networkmap(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        source_provider_inventory,
-        target_namespace,
-        multus_network_name,
-    ):
-        """Create NetworkMap resource for migration."""
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        source_provider_inventory: "ForkliftInventory",
+        target_namespace: str,
+        multus_network_name: dict[str, str],
+    ) -> None:
+        """Create NetworkMap resource for migration.
+
+        Args:
+            prepared_plan (dict[str, Any]): The prepared migration plan.
+            fixture_store (dict[str, Any]): Fixture store for resource tracking.
+            ocp_admin_client (DynamicClient): OpenShift admin client.
+            source_provider (BaseProvider): Source provider instance.
+            destination_provider (OCPProvider): Destination provider instance.
+            source_provider_inventory (ForkliftInventory): Source provider inventory.
+            target_namespace (str): Target namespace for migration.
+            multus_network_name (dict[str, str]): Multus network configuration.
+        """
         vms = [vm["name"] for vm in prepared_plan["virtual_machines"]]
         self.__class__.network_map = get_network_migration_map(
             fixture_store=fixture_store,
@@ -397,15 +431,25 @@ class TestResumeConversionIneligible:
 
     def test_create_plan(
         self,
-        prepared_plan,
-        fixture_store,
-        ocp_admin_client,
-        source_provider,
-        destination_provider,
-        target_namespace,
-        source_provider_inventory,
-    ):
-        """Create warm migration Plan CR."""
+        prepared_plan: dict[str, Any],  # Any: dynamic pytest plan configuration.
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        source_provider: "BaseProvider",
+        destination_provider: "OCPProvider",
+        target_namespace: str,
+        source_provider_inventory: "ForkliftInventory",
+    ) -> None:
+        """Create warm migration Plan CR.
+
+        Args:
+            prepared_plan (dict[str, Any]): The prepared migration plan.
+            fixture_store (dict[str, Any]): Fixture store for resource tracking.
+            ocp_admin_client (DynamicClient): OpenShift admin client.
+            source_provider (BaseProvider): Source provider instance.
+            destination_provider (OCPProvider): Destination provider instance.
+            target_namespace (str): Target namespace for migration.
+            source_provider_inventory (ForkliftInventory): Source provider inventory.
+        """
         populate_vm_ids(plan=prepared_plan, inventory=source_provider_inventory)
         self.__class__.plan_resource = create_plan_resource(
             ocp_admin_client=ocp_admin_client,
@@ -422,10 +466,10 @@ class TestResumeConversionIneligible:
 
     def test_resume_without_prior_failure(
         self,
-        fixture_store,
-        ocp_admin_client,
-        target_namespace,
-    ):
+        fixture_store: dict[str, Any],  # Any: dynamic pytest teardown store.
+        ocp_admin_client: "DynamicClient",
+        target_namespace: str,
+    ) -> None:
         """Verify resumeConversion fails when no migration has run.
 
         Creates a resume Migration CR for a plan that has never been migrated.
@@ -437,7 +481,10 @@ class TestResumeConversionIneligible:
             ocp_admin_client (DynamicClient): OpenShift admin client.
             target_namespace (str): Target namespace for migration.
         """
-        with pytest.raises(MigrationPlanExecError):
+        with pytest.raises(
+            MigrationPlanExecError,
+            match="Resume conversion requires VMs with completed disk copy",
+        ):
             execute_resume_migration(
                 ocp_admin_client=ocp_admin_client,
                 fixture_store=fixture_store,

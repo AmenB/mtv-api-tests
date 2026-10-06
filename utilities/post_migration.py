@@ -1806,7 +1806,7 @@ def check_vms(
     network_map_resource: NetworkMap,
     storage_map_resource: StorageMap,
     source_provider_data: dict[str, Any],
-    source_vms_namespace: str,
+    source_vms_namespace: str | None,
     source_provider_inventory: ForkliftInventory | None = None,
     vm_ssh_connections: SSHConnectionManager | None = None,
     labeled_worker_node: dict[str, Any] | None = None,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -14,7 +15,6 @@ from simple_logger.logger import get_logger
 from timeout_sampler import TimeoutExpiredError, TimeoutSampler
 
 from exceptions.exceptions import MigrationPlanExecError
-from utilities.mtv_migration import get_plan_migration_status
 from utilities.resources import create_and_store_resource
 
 if TYPE_CHECKING:
@@ -26,13 +26,28 @@ _DISK_TRANSFER_STEP_NAME: str = "DiskTransfer"
 _CONVERSION_POD_LABEL_SELECTOR: str = "forklift.app=virt-v2v"
 
 
+@dataclass(frozen=True)
+class FailedConversionState:
+    """Identifiers captured before the initial conversion is interrupted.
+
+    Args:
+        plan_uid (str): UID used to scope PVCs created for the Plan.
+        migration_uid (str): UID used to identify the initial conversion pod.
+        pvc_uids (dict[str, str]): PVC names and UIDs captured after disk copy.
+    """
+
+    plan_uid: str
+    migration_uid: str
+    pvc_uids: dict[str, str]
+
+
 def start_migration_and_kill_conversion(
     ocp_admin_client: "DynamicClient",
-    fixture_store: dict[str, Any],
+    fixture_store: dict[str, Any],  # Any: pytest fixture store has a dynamic teardown structure.
     plan: Plan,
     target_namespace: str,
     cut_over: datetime,
-) -> dict[str, str]:
+) -> FailedConversionState:
     """Start a warm migration, wait for disk transfer, record PVC UIDs, then kill the conversion pod.
 
     Creates a Migration CR, waits for the ``DiskTransfer`` pipeline step to
@@ -51,10 +66,13 @@ def start_migration_and_kill_conversion(
         cut_over (datetime): Cutover time for the warm migration.
 
     Returns:
-        dict[str, str]: PVC name-to-UID mapping recorded after disk transfer
-        completed (before the conversion pod was killed).
+        FailedConversionState: Plan, migration, and PVC identifiers recorded
+        after disk transfer completed and before conversion was interrupted.
+
+    Raises:
+        ValueError: If the created Plan or Migration has no UID.
     """
-    create_and_store_resource(
+    migration = create_and_store_resource(
         client=ocp_admin_client,
         fixture_store=fixture_store,
         resource=Migration,
@@ -64,20 +82,33 @@ def start_migration_and_kill_conversion(
         plan_namespace=plan.namespace,
         cut_over=cut_over,
     )
+    plan_uid = plan.instance.metadata.uid
+    migration_uid = migration.instance.metadata.uid
+    if not plan_uid:
+        raise ValueError(f"Plan '{plan.name}' has no UID")
+    if not migration_uid:
+        raise ValueError(f"Migration '{migration.name}' has no UID")
+
     _wait_for_disk_transfer_complete(plan=plan)
 
     pre_failure_pvc_uids = verify_pvcs_bound(
         ocp_admin_client=ocp_admin_client,
         target_namespace=target_namespace,
+        plan_uid=plan_uid,
     )
 
     conversion_pod = _wait_for_conversion_pod(
         ocp_admin_client=ocp_admin_client,
         target_namespace=target_namespace,
+        migration_uid=migration_uid,
     )
     _kill_conversion_pod(pod=conversion_pod)
 
-    return pre_failure_pvc_uids
+    return FailedConversionState(
+        plan_uid=plan_uid,
+        migration_uid=migration_uid,
+        pvc_uids=pre_failure_pvc_uids,
+    )
 
 
 def _wait_for_disk_transfer_complete(plan: Plan) -> None:
@@ -134,14 +165,16 @@ def _is_disk_transfer_complete(plan: Plan) -> bool:
 def _wait_for_conversion_pod(
     ocp_admin_client: "DynamicClient",
     target_namespace: str,
+    migration_uid: str,
 ) -> Pod:
     """Wait for a running virt-v2v conversion pod.
 
-    Polls for pods with the ``forklift.app=virt-v2v`` label in the target namespace.
+    Polls for the virt-v2v pod owned by the initial Migration.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client.
         target_namespace (str): Namespace where migration pods run.
+        migration_uid (str): UID of the initial Migration CR.
 
     Returns:
         Pod: The running conversion pod.
@@ -156,6 +189,7 @@ def _wait_for_conversion_pod(
         wait_timeout=py_config["plan_wait_timeout"],
         ocp_admin_client=ocp_admin_client,
         target_namespace=target_namespace,
+        migration_uid=migration_uid,
     ):
         if sample:
             LOGGER.info(f"Found running conversion pod '{sample.name}'")
@@ -165,12 +199,14 @@ def _wait_for_conversion_pod(
 def _find_conversion_pod(
     ocp_admin_client: "DynamicClient",
     target_namespace: str,
+    migration_uid: str,
 ) -> Pod | None:
     """Find a running pod with the virt-v2v label.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client.
         target_namespace (str): Namespace to search.
+        migration_uid (str): UID used to select the conversion pod.
 
     Returns:
         Pod | None: A running conversion pod, or None if not found.
@@ -178,10 +214,10 @@ def _find_conversion_pod(
     for pod in Pod.get(
         client=ocp_admin_client,
         namespace=target_namespace,
-        label_selector=_CONVERSION_POD_LABEL_SELECTOR,
+        label_selector=f"{_CONVERSION_POD_LABEL_SELECTOR},migration={migration_uid}",
     ):
         try:
-            if pod.instance.status and pod.instance.status.phase == "Running":
+            if pod.instance.status and pod.instance.status.phase == Pod.Status.RUNNING:
                 return pod
         except NotFoundError:
             continue
@@ -204,15 +240,16 @@ def _kill_conversion_pod(pod: Pod) -> None:
 def verify_pvcs_bound(
     ocp_admin_client: "DynamicClient",
     target_namespace: str,
+    plan_uid: str,
 ) -> dict[str, str]:
     """Verify migration PVCs are Bound and return their UIDs.
 
-    Gets all PVCs in the target namespace (unique per test session) and
-    verifies each is in Bound phase.
+    Gets PVCs labeled for the tested Plan and verifies each is in Bound phase.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client.
         target_namespace (str): Namespace containing migration PVCs.
+        plan_uid (str): Plan UID used to select only this test's PVCs.
 
     Returns:
         dict[str, str]: Mapping of PVC name to UID.
@@ -221,7 +258,13 @@ def verify_pvcs_bound(
         ValueError: If no PVCs found or a PVC has no status.
         AssertionError: If any PVC is not in Bound phase.
     """
-    pvcs = list(PersistentVolumeClaim.get(client=ocp_admin_client, namespace=target_namespace))
+    pvcs = list(
+        PersistentVolumeClaim.get(
+            client=ocp_admin_client,
+            namespace=target_namespace,
+            label_selector=f"plan={plan_uid}",
+        )
+    )
     if not pvcs:
         raise ValueError(f"No PVCs found in namespace '{target_namespace}'")
 
@@ -231,7 +274,9 @@ def verify_pvcs_bound(
         if not status:
             raise ValueError(f"PVC '{pvc.name}' has no status")
         phase = status.phase
-        assert phase == "Bound", f"PVC '{pvc.name}' is in phase '{phase}', expected 'Bound'"
+        assert phase == PersistentVolumeClaim.Status.BOUND, (
+            f"PVC '{pvc.name}' is in phase '{phase}', expected '{PersistentVolumeClaim.Status.BOUND}'"
+        )
         pvc_uids[pvc.name] = pvc.instance.metadata.uid
         LOGGER.info(f"PVC '{pvc.name}' is Bound (UID: {pvc_uids[pvc.name]})")
 
@@ -242,8 +287,8 @@ def verify_resume_skipped_disk_copy(plan: Plan) -> None:
     """Verify the resumed migration did not re-execute disk transfer.
 
     Inspects the plan VM pipeline after a successful resume migration.
-    The DiskTransfer step must not have been re-run — it should either be
-    absent or already Completed from the original migration.
+    The resume itinerary must omit DiskTransfer for every VM. The initial
+    migration already proved that DiskTransfer completed before conversion.
 
     Args:
         plan (Plan): The Plan CR to inspect after resume.
@@ -258,66 +303,88 @@ def verify_resume_skipped_disk_copy(plan: Plan) -> None:
 
     for vm in vms:
         pipeline = getattr(vm, "pipeline", [])
+        if not pipeline:
+            raise ValueError("A resumed VM has no migration pipeline")
         LOGGER.info(f"Resume pipeline for VM: {[{'name': s.name, 'phase': s.phase} for s in pipeline]}")
-        for step in pipeline:
-            if step.name == _DISK_TRANSFER_STEP_NAME:
-                assert step.phase == "Completed", (
-                    f"DiskTransfer was re-executed during resume (phase: {step.phase}), "
-                    f"expected Completed from original migration"
-                )
-                LOGGER.info("Verified: DiskTransfer not re-executed during resume")
-                return
+        step_names = [step.name for step in pipeline]
+        assert _DISK_TRANSFER_STEP_NAME not in step_names, (
+            f"Resume pipeline includes {_DISK_TRANSFER_STEP_NAME} for VM '{getattr(vm, 'name', 'unknown')}'"
+        )
 
-    LOGGER.info("Verified: No DiskTransfer step in resume pipeline (skipped entirely)")
+    LOGGER.info("Verified: No VM resume pipeline includes DiskTransfer")
 
 
-def _wait_for_resume_migration_complete(plan: Plan) -> None:
-    """Wait for a resume migration to complete, handling stale Plan FAILED status.
-
-    After a first migration failure, the Plan's FAILED condition remains True
-    until Forklift reconciles the new resume Migration CR. This function skips
-    initial FAILED statuses and waits for the plan to transition through
-    Executing to Succeeded.
+def _get_migration_terminal_status(migration: Migration) -> str:
+    """Return the active terminal condition type for a Migration.
 
     Args:
-        plan (Plan): The Plan resource to monitor.
+        migration (Migration): Migration CR to inspect.
+
+    Returns:
+        str: ``Succeeded`` or ``Failed`` when active, otherwise an empty string.
+    """
+    conditions = getattr(migration.instance.status, "conditions", []) or []
+    for condition in conditions:
+        if condition.status != migration.Condition.Status.TRUE:
+            continue
+        if condition.type in (Migration.Status.SUCCEEDED, Migration.Status.FAILED):
+            return condition.type
+    return ""
+
+
+def _get_resume_failure_message(plan: Plan, migration_uid: str) -> str:
+    """Get the detailed failure message for a resume Migration from Plan history.
+
+    Args:
+        plan (Plan): Plan containing migration history snapshots.
+        migration_uid (str): UID of the resume Migration.
+
+    Returns:
+        str: Detailed failed-condition message, or a generic fallback.
+    """
+    history = getattr(plan.instance.status.migration, "history", []) or []
+    for snapshot in reversed(history):
+        snapshot_migration = getattr(snapshot, "migration", None)
+        if getattr(snapshot_migration, "uid", None) != migration_uid:
+            continue
+        for condition in getattr(snapshot, "conditions", []) or []:
+            if condition.type == Plan.Status.FAILED and condition.status == Migration.Condition.Status.TRUE:
+                return getattr(condition, "message", None) or "The resume migration failed"
+    return "The resume migration failed"
+
+
+def _wait_for_resume_migration_complete(migration: Migration, plan: Plan) -> None:
+    """Wait for the exact resume Migration CR to reach a terminal condition.
+
+    Args:
+        migration (Migration): Resume Migration resource to monitor.
+        plan (Plan): Plan used to retrieve detailed failure conditions.
 
     Raises:
-        MigrationPlanExecError: If resume migration fails or times out.
+        MigrationPlanExecError: If Forklift rejects or fails the resume migration.
+        TimeoutExpiredError: If the resume migration does not finish in time.
+        ValueError: If the resume Migration has no UID.
     """
-    seen_non_failed = False
-    last_status: str = ""
+    migration_uid = migration.instance.metadata.uid
+    if not migration_uid:
+        raise ValueError(f"Migration '{migration.name}' has no UID")
 
-    try:
-        for sample in TimeoutSampler(
-            func=get_plan_migration_status,
-            sleep=1,
-            wait_timeout=py_config["plan_wait_timeout"],
-            plan=plan,
-        ):
-            if sample != last_status:
-                LOGGER.info(f"Plan '{plan.name}' resume migration status: '{sample}'")
-                last_status = sample
-
-            if sample == Plan.Status.FAILED and not seen_non_failed:
-                continue
-
-            if sample == Plan.Status.EXECUTING:
-                seen_non_failed = True
-
-            if sample == Plan.Status.SUCCEEDED:
-                return
-
-            if sample == Plan.Status.FAILED and seen_non_failed:
-                raise MigrationPlanExecError()
-
-    except (TimeoutExpiredError, MigrationPlanExecError):
-        raise MigrationPlanExecError(f"Resume migration for plan '{plan.name}' failed.\nstatus:\n\t{plan.instance}")
+    for status in TimeoutSampler(
+        func=_get_migration_terminal_status,
+        sleep=1,
+        wait_timeout=py_config["plan_wait_timeout"],
+        migration=migration,
+    ):
+        if status == Migration.Status.SUCCEEDED:
+            return
+        if status == Migration.Status.FAILED:
+            message = _get_resume_failure_message(plan=plan, migration_uid=migration_uid)
+            raise MigrationPlanExecError(f"Resume migration for plan '{plan.name}' failed: {message}")
 
 
 def execute_resume_migration(
     ocp_admin_client: "DynamicClient",
-    fixture_store: dict[str, Any],
+    fixture_store: dict[str, Any],  # Any: pytest fixture store has a dynamic teardown structure.
     plan: Plan,
     target_namespace: str,
 ) -> None:
@@ -334,10 +401,11 @@ def execute_resume_migration(
         target_namespace (str): Target namespace for the Migration CR.
 
     Raises:
-        MigrationPlanExecError: If the resume migration fails.
+        MigrationPlanExecError: If Forklift rejects or fails the resume migration.
+        TimeoutExpiredError: If the resume migration does not finish in time.
     """
     resume_name = f"{plan.name}-resume"[:63]
-    create_and_store_resource(
+    migration = create_and_store_resource(
         client=ocp_admin_client,
         fixture_store=fixture_store,
         resource=Migration,
@@ -347,4 +415,4 @@ def execute_resume_migration(
         plan_namespace=plan.namespace,
         resume_conversion=True,
     )
-    _wait_for_resume_migration_complete(plan=plan)
+    _wait_for_resume_migration_complete(migration=migration, plan=plan)
