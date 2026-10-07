@@ -236,7 +236,7 @@ class TestResumeConversionWarmMigration:
         post_failure_pvc_uids = verify_pvcs_bound(
             ocp_admin_client=ocp_admin_client,
             target_namespace=target_namespace,
-            plan_uid=self.failed_conversion_state.plan_uid,
+            migration_uid=self.failed_conversion_state.migration_uid,
         )
         assert post_failure_pvc_uids == self.failed_conversion_state.pvc_uids, (
             f"PVC UIDs changed after failure — PVCs were not preserved. "
@@ -271,7 +271,7 @@ class TestResumeConversionWarmMigration:
         resumed_pvc_uids = verify_pvcs_bound(
             ocp_admin_client=ocp_admin_client,
             target_namespace=target_namespace,
-            plan_uid=self.failed_conversion_state.plan_uid,
+            migration_uid=self.failed_conversion_state.migration_uid,
         )
         assert resumed_pvc_uids == self.failed_conversion_state.pvc_uids, (
             f"PVC UIDs changed after resume — PVCs were recreated instead of reused. "

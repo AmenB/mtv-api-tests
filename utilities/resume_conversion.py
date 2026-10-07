@@ -31,12 +31,10 @@ class FailedConversionState:
     """Identifiers captured before the initial conversion is interrupted.
 
     Args:
-        plan_uid (str): UID used to scope PVCs created for the Plan.
-        migration_uid (str): UID used to identify the initial conversion pod.
+        migration_uid (str): UID used to identify the initial migration resources.
         pvc_uids (dict[str, str]): PVC names and UIDs captured after disk copy.
     """
 
-    plan_uid: str
     migration_uid: str
     pvc_uids: dict[str, str]
 
@@ -66,11 +64,11 @@ def start_migration_and_kill_conversion(
         cut_over (datetime): Cutover time for the warm migration.
 
     Returns:
-        FailedConversionState: Plan, migration, and PVC identifiers recorded
+        FailedConversionState: Migration and PVC identifiers recorded
         after disk transfer completed and before conversion was interrupted.
 
     Raises:
-        ValueError: If the created Plan or Migration has no UID.
+        ValueError: If the created Migration has no UID.
     """
     migration = create_and_store_resource(
         client=ocp_admin_client,
@@ -82,10 +80,7 @@ def start_migration_and_kill_conversion(
         plan_namespace=plan.namespace,
         cut_over=cut_over,
     )
-    plan_uid = plan.instance.metadata.uid
     migration_uid = migration.instance.metadata.uid
-    if not plan_uid:
-        raise ValueError(f"Plan '{plan.name}' has no UID")
     if not migration_uid:
         raise ValueError(f"Migration '{migration.name}' has no UID")
 
@@ -94,7 +89,7 @@ def start_migration_and_kill_conversion(
     pre_failure_pvc_uids = verify_pvcs_bound(
         ocp_admin_client=ocp_admin_client,
         target_namespace=target_namespace,
-        plan_uid=plan_uid,
+        migration_uid=migration_uid,
     )
 
     conversion_pod = _wait_for_conversion_pod(
@@ -105,7 +100,6 @@ def start_migration_and_kill_conversion(
     _kill_conversion_pod(pod=conversion_pod)
 
     return FailedConversionState(
-        plan_uid=plan_uid,
         migration_uid=migration_uid,
         pvc_uids=pre_failure_pvc_uids,
     )
@@ -240,16 +234,16 @@ def _kill_conversion_pod(pod: Pod) -> None:
 def verify_pvcs_bound(
     ocp_admin_client: "DynamicClient",
     target_namespace: str,
-    plan_uid: str,
+    migration_uid: str,
 ) -> dict[str, str]:
     """Verify migration PVCs are Bound and return their UIDs.
 
-    Gets PVCs labeled for the tested Plan and verifies each is in Bound phase.
+    Gets PVCs labeled for the initial Migration and verifies each is in Bound phase.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client.
         target_namespace (str): Namespace containing migration PVCs.
-        plan_uid (str): Plan UID used to select only this test's PVCs.
+        migration_uid (str): Initial Migration UID used to select only its PVCs.
 
     Returns:
         dict[str, str]: Mapping of PVC name to UID.
@@ -262,7 +256,7 @@ def verify_pvcs_bound(
         PersistentVolumeClaim.get(
             client=ocp_admin_client,
             namespace=target_namespace,
-            label_selector=f"plan={plan_uid}",
+            label_selector=f"migration={migration_uid}",
         )
     )
     if not pvcs:
