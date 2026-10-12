@@ -270,6 +270,16 @@ podman run --rm \
 - `YOUR-STORAGE-CLASS` → Your storage class from step 4
 - `vsphere-8.0.1` → Provider key from your `.providers.json` (e.g., `vsphere-8.0.1`, `ovirt-4.4.9`)
 
+**Cluster credentials**: each of `cluster_host`, `cluster_username`, and `cluster_password` is resolved from the
+pytest config value first (`--tc=cluster_host:...`) and then from the matching `CLUSTER_HOST`, `CLUSTER_USERNAME`,
+or `CLUSTER_PASSWORD` environment variable. Runs that provide any of the three must provide all three as nonblank
+values; partial, empty, or whitespace-only sets fail fast with a named error such as
+`Missing cluster credentials: set 'cluster_username' in pytest config or CLUSTER_USERNAME`. Omitting all three is
+valid only for ambient authentication from a kubeconfig available to the test process. `mtv-api-tests run` reaches that
+path only when no OpenShift provider is selected from `.providers.json` — the CLI checks for an existing `oc` token only
+then and does not pass a standalone token to the client. See
+[runtime configuration](docs/runtime-configuration.html) for details.
+
 ---
 
 ## Running Different Test Categories
