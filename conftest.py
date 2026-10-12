@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import bdb
 import logging
 import os
 import pickle
@@ -75,6 +76,7 @@ from utilities.pytest_utils import (
 )
 from utilities.resources import create_and_store_resource, get_or_create_namespace
 from utilities.ssh_utils import SSHConnectionManager
+from utilities.debug import remote_debugger_enabled, remote_post_mortem
 from utilities.utils import (
     create_source_cnv_vms,
     create_source_provider,
@@ -390,6 +392,23 @@ def pytest_exception_interact(node, call, report):
                 plan = {"name": plan_obj.name, "namespace": plan_obj.namespace}
 
         run_must_gather(data_collector_path=_data_collector_path, plan=plan)
+
+    # Remote post-mortem debugger (MTV_REMOTE_PDB). Runs after must-gather so diagnostics
+    # are collected before the session blocks waiting for a debugger connection. Skipped
+    # when --pdb is active so the local terminal debugger takes precedence, and skipped
+    # for BdbQuit so quitting a code breakpoint fails that test without opening another
+    # listener. A debugger quit ends the test session, matching pytest's native --pdb
+    # behavior. usepdb has a default because -p no:pdb removes the option.
+    if (
+        remote_debugger_enabled()
+        and not node.config.getoption("usepdb", default=False)
+        and call.excinfo is not None
+        and not isinstance(call.excinfo.value, bdb.BdbQuit)
+    ):
+        try:
+            remote_post_mortem(exception=call.excinfo.value)
+        except bdb.BdbQuit:
+            pytest.exit("Quitting remote debugger")
 
 
 # https://smarie.github.io/python-pytest-harvest/#pytest-x-dist
