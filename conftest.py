@@ -68,6 +68,7 @@ from utilities.provider_inventory import (
     validate_source_vms_exist,
     wait_for_added_nics_in_forklift_inventory,
     wait_for_cloned_vms_in_forklift_inventory,
+    wait_for_inventory_guest_networks,
 )
 from utilities.naming import (
     generate_name_with_uuid,
@@ -1410,7 +1411,7 @@ def prepared_plan(
                 f"disable_drs_for_vms requires a VMware clone provider, got '{type(clone_provider).__name__}'"
             )
 
-        if plan.get("preserve_static_ips"):
+        if plan.get("preserve_static_ips", False):
             for vm in virtual_machines:
                 if vm.get("source_vm_power") != "on":
                     raise ValueError(
@@ -1471,7 +1472,7 @@ def prepared_plan(
                     elif source_vm_power == "off":
                         source_provider.stop_vm(provider_vm_api)
 
-                if plan.get("preserve_static_ips"):
+                if plan.get("preserve_static_ips", False):
                     source_vm_details = source_provider.vm_dict(
                         provider_vm_api=provider_vm_api,
                         name=vm["name"],
@@ -1591,7 +1592,7 @@ def prepared_plan(
                     except ValueError:
                         raise
                     except (GuestCommandError, vim.fault.VimFault, TimeoutExpiredError, OSError) as e:
-                        if plan.get("preserve_static_ips"):
+                        if plan.get("preserve_static_ips", False):
                             raise ValueError(
                                 f"Failed to detect IP origins via Guest Operations for VM {vm['name']}: {e}. "
                                 "IP origin detection is required when preserve_static_ips is enabled."
@@ -1601,7 +1602,7 @@ def prepared_plan(
                             "Static IP verification may not work for this VM."
                         )
 
-                    if plan.get("preserve_static_ips"):
+                    if plan.get("preserve_static_ips", False):
                         detect_guest_nic_names(
                             source_provider=source_provider,
                             vm=provider_vm_api,
@@ -1639,6 +1640,13 @@ def prepared_plan(
                     source_vm_names=original_source_vm_names,
                     cloned_vms=cloned_vm_objects,
                 )
+
+        if plan.get("preserve_static_ips", False) and source_provider.type == Provider.ProviderType.HYPERV:
+            wait_for_inventory_guest_networks(
+                source_provider_inventory=source_provider_inventory,
+                vm_names=[vm["name"] for vm in virtual_machines],
+                source_vms_data=plan["source_vms_data"],
+            )
     else:
         # OVA VMs aren't cloned — add unique targetName to prevent destination VM name conflicts
         # across parallel test sessions. The source VM name stays unchanged (must match OVA file).
