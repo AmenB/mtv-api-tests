@@ -46,7 +46,7 @@ from exceptions.exceptions import (
 )
 from utilities.copyoffload_constants import FORKLIFT_CONTROLLER_NAME
 from utilities.copyoffload_migration import apply_copyoffload_vm_name_override, resolve_non_dedicated_esxi_host
-from libs.base_provider import BaseProvider, supports_add_nic
+from libs.base_provider import _PROVIDER_TEST_MARKERS, BaseProvider, supports_add_nic
 from libs.forklift_inventory import ForkliftInventory, create_forklift_inventory
 from libs.providers.openshift import OCPProvider
 from libs.providers.vmware import VMWareProvider
@@ -443,11 +443,14 @@ def pytest_collection_modifyitems(session, config, items):
                     if "warm" in item.keywords:
                         item.add_marker(warm_skip)
 
-            # Skip vSphere-only tests for non-vSphere providers.
+            # Skip vSphere-marked tests unless they also declare the configured source
+            # provider, and skip vSphere-only feature tests, on non-vSphere runs.
             if source_provider_type != Provider.ProviderType.VSPHERE:
                 vsphere_only_skip = pytest.mark.skip(reason="Test is only applicable to vSphere source providers")
+                configured_provider_marker = _PROVIDER_TEST_MARKERS[source_provider_type]
                 for item in items:
-                    if any(
+                    is_vsphere_scoped = "vsphere" in item.keywords and configured_provider_marker not in item.keywords
+                    if is_vsphere_scoped or any(
                         kw in item.keywords for kw in ("copyoffload", "shared_disk", "deep_inspection", "aap", "luks")
                     ):
                         item.add_marker(vsphere_only_skip)
