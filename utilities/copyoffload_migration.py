@@ -994,6 +994,30 @@ def _get_disk_transfer_tasks(plan: Plan) -> list[Any]:
     return tasks
 
 
+def _get_task_annotation_value(task: Any, plan_name: str, annotation_name: str) -> str:
+    """Read a required annotation from a Plan DiskTransfer task.
+
+    Args:
+        task (Any): A DiskTransfer task object from Plan CR migration status.
+        plan_name (str): Plan name for error context.
+        annotation_name (str): Annotation key to read.
+
+    Returns:
+        str: The annotation value.
+
+    Raises:
+        ValueError: If annotations or the annotation key is missing from the task.
+    """
+    task_name = getattr(task, "name", "<unknown>")
+    annotations = getattr(task, "annotations", None)
+    if annotations is None:
+        raise ValueError(f"DiskTransfer task '{task_name}' in Plan '{plan_name}' has no annotations")
+    value = getattr(annotations, annotation_name, None)
+    if value is None:
+        raise ValueError(f"DiskTransfer task '{task_name}' in Plan '{plan_name}' has no '{annotation_name}' annotation")
+    return value
+
+
 def _get_xcopy_used_annotation(task: Any, plan_name: str) -> str:
     """Extract and validate the xcopyUsed annotation from a DiskTransfer task.
 
@@ -1005,16 +1029,89 @@ def _get_xcopy_used_annotation(task: Any, plan_name: str) -> str:
         str: The xcopyUsed annotation value as a string.
 
     Raises:
-        ValueError: If annotations or xcopyUsed attribute is missing from the task.
+        ValueError: If annotations or the xcopyUsed annotation is missing from the task.
+    """
+    return _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="xcopyUsed")
+
+
+def _get_task_number_annotation(task: Any, plan_name: str, annotation_name: str) -> float:
+    """Read a Plan DiskTransfer task annotation and parse it as a number.
+
+    Args:
+        task (Any): A DiskTransfer task object from Plan CR migration status.
+        plan_name (str): Plan name for error context.
+        annotation_name (str): Annotation key to read.
+
+    Returns:
+        float: The parsed annotation value.
+
+    Raises:
+        ValueError: If the annotation is missing or its value is not a number.
+    """
+    value = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name=annotation_name)
+    try:
+        return float(value)
+    except ValueError as exc:
+        task_name = getattr(task, "name", "<unknown>")
+        raise ValueError(
+            f"DiskTransfer task '{task_name}' in Plan '{plan_name}': annotation '{annotation_name}' "
+            f"value '{value}' is not a number"
+        ) from exc
+
+
+def _verify_task_offload_annotations(task: Any, plan_name: str) -> None:
+    """Verify storage-offload observability annotations on a Plan DiskTransfer task.
+
+    After a copy-offload migration, Forklift propagates the volume populator's copy
+    details to Plan DiskTransfer task annotations (MTV-6086): result,
+    copyDurationSeconds, storageVendor, cloneMethod, storageProtocol, provisionedBytes,
+    and allocatedBytes. The values are reported on both XCOPY and software-fallback
+    copies; Forklift never propagates empty values, so presence is the contract for the
+    free-form string annotations.
+
+    Args:
+        task (Any): A DiskTransfer task object from Plan CR migration status.
+        plan_name (str): Plan name for error context.
+
+    Raises:
+        ValueError: If an annotation is missing or a numeric annotation is not a number.
+        AssertionError: If result is not "success", copyDurationSeconds or
+            provisionedBytes is not positive, or allocatedBytes is negative.
     """
     task_name = getattr(task, "name", "<unknown>")
-    annotations = getattr(task, "annotations", None)
-    if annotations is None:
-        raise ValueError(f"DiskTransfer task '{task_name}' in Plan '{plan_name}' has no annotations")
-    xcopy_used = getattr(annotations, "xcopyUsed", None)
-    if xcopy_used is None:
-        raise ValueError(f"DiskTransfer task '{task_name}' in Plan '{plan_name}' has no xcopyUsed annotation")
-    return xcopy_used
+
+    result = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="result")
+    storage_vendor = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="storageVendor")
+    clone_method = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="cloneMethod")
+    storage_protocol = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="storageProtocol")
+    copy_duration_seconds = _get_task_number_annotation(
+        task=task, plan_name=plan_name, annotation_name="copyDurationSeconds"
+    )
+    provisioned_bytes = _get_task_number_annotation(task=task, plan_name=plan_name, annotation_name="provisionedBytes")
+    allocated_bytes = _get_task_number_annotation(task=task, plan_name=plan_name, annotation_name="allocatedBytes")
+
+    LOGGER.info(
+        f"Plan offload annotations: task '{task_name}' result={result} cloneMethod={clone_method} "
+        f"storageVendor={storage_vendor} storageProtocol={storage_protocol} "
+        f"copyDurationSeconds={copy_duration_seconds} provisionedBytes={provisioned_bytes} "
+        f"allocatedBytes={allocated_bytes}"
+    )
+
+    assert result == "success", (
+        f"Plan '{plan_name}' DiskTransfer task '{task_name}': expected result='success', got result='{result}'"
+    )
+    assert copy_duration_seconds > 0, (
+        f"Plan '{plan_name}' DiskTransfer task '{task_name}': copyDurationSeconds must be positive, "
+        f"got {copy_duration_seconds}"
+    )
+    assert provisioned_bytes > 0, (
+        f"Plan '{plan_name}' DiskTransfer task '{task_name}': provisionedBytes must be positive, "
+        f"got {provisioned_bytes}"
+    )
+    assert allocated_bytes >= 0, (
+        f"Plan '{plan_name}' DiskTransfer task '{task_name}': allocatedBytes must not be negative, "
+        f"got {allocated_bytes}"
+    )
 
 
 def _verify_disk_transfer_task_count(plan: Plan, expected_task_count: int) -> list[Any]:
@@ -1043,10 +1140,11 @@ def _verify_xcopy_plan_annotations(
     expected_xcopy_used: bool,
     expected_task_count: int,
 ) -> None:
-    """Verify xcopyUsed annotations on Plan CR DiskTransfer tasks.
+    """Verify xcopyUsed and storage-offload annotations on Plan CR DiskTransfer tasks.
 
     After copy-offload migrations, Forklift propagates xcopyUsed from populate pods
-    to Plan CR task annotations. This cross-verifies the Plan CR against expected values.
+    to Plan CR task annotations. This cross-verifies the Plan CR against expected values
+    and verifies the storage-offload observability annotations on each task.
 
     Args:
         plan (Plan): The Plan CR resource with completed migration status.
@@ -1056,8 +1154,9 @@ def _verify_xcopy_plan_annotations(
 
     Raises:
         ValueError: If DiskTransfer task count differs from expected_task_count, tasks are
-            missing, or annotations are missing.
-        AssertionError: If any task's xcopyUsed annotation doesn't match expected.
+            missing, annotations are missing, or a numeric annotation is not a number.
+        AssertionError: If any task's xcopyUsed annotation doesn't match expected or an
+            observability annotation holds an unexpected value.
     """
     tasks = _verify_disk_transfer_task_count(plan=plan, expected_task_count=expected_task_count)
     expected_str = "1" if expected_xcopy_used else "0"
@@ -1074,6 +1173,7 @@ def _verify_xcopy_plan_annotations(
             f"Plan '{plan.name}' DiskTransfer task '{task_name}': "
             f"expected xcopyUsed='{expected_str}', got xcopyUsed='{actual}'"
         )
+        _verify_task_offload_annotations(task=task, plan_name=plan.name)
 
     LOGGER.info(
         f"Plan CR annotation verification passed: all {len(tasks)} DiskTransfer task(s) have xcopyUsed='{expected_str}'"
@@ -1138,11 +1238,12 @@ def _verify_xcopy_plan_annotations_per_datastore(
     datastore_names_by_id: dict[str, str],
     expected_task_count: int,
 ) -> None:
-    """Verify per-datastore xcopyUsed annotations on Plan CR DiskTransfer tasks.
+    """Verify per-datastore xcopyUsed and storage-offload annotations on Plan CR DiskTransfer tasks.
 
     Cross-verifies Plan CR task annotations against per-datastore expected values.
     Parses the datastore display name from each task name and maps it back to the
-    expected xcopyUsed value.
+    expected xcopyUsed value. Also verifies the storage-offload observability
+    annotations on each task.
 
     Args:
         plan (Plan): The Plan CR resource with completed migration status.
@@ -1155,10 +1256,10 @@ def _verify_xcopy_plan_annotations_per_datastore(
 
     Raises:
         ValueError: If DiskTransfer task count differs from expected_task_count, tasks are
-            missing, annotations are missing, display names are duplicated, or a task's
-            datastore cannot be matched.
+            missing, annotations are missing, a numeric annotation is not a number, display
+            names are duplicated, or a task's datastore cannot be matched.
         AssertionError: If any task's xcopyUsed annotation doesn't match its datastore
-            expectation.
+            expectation or an observability annotation holds an unexpected value.
     """
     expected_by_display_name = _build_expected_by_display_name(
         expected_xcopy_by_datastore_id=expected_xcopy_by_datastore_id,
@@ -1192,6 +1293,7 @@ def _verify_xcopy_plan_annotations_per_datastore(
             f"(datastore '{datastore_name}'): expected xcopyUsed='{expected_str}', "
             f"got xcopyUsed='{actual}'"
         )
+        _verify_task_offload_annotations(task=task, plan_name=plan.name)
 
     LOGGER.info(f"Plan CR per-datastore annotation verification passed for all {len(tasks)} DiskTransfer task(s)")
 
@@ -1206,8 +1308,10 @@ def verify_xcopy_used(
     """Verify xcopyUsed matches expected value for all disks in a copy-offload migration.
 
     Verifies XCOPY usage via both populate pod logs and Plan CR task annotations.
-    Uses cached logs from fixture_store if available (captured during migration),
-    otherwise queries live pods.
+    Also verifies the storage-offload observability annotations Forklift propagates to
+    the Plan CR tasks (result, copyDurationSeconds, storageVendor, cloneMethod,
+    storageProtocol, provisionedBytes, allocatedBytes). Uses cached logs from
+    fixture_store if available (captured during migration), otherwise queries live pods.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client for API interactions.
@@ -1221,8 +1325,9 @@ def verify_xcopy_used(
 
     Raises:
         ValueError: If no populate pods found, xcopyUsed not found in pod logs,
-            or Plan CR task annotations are missing.
-        AssertionError: If any disk's xcopyUsed value doesn't match expected.
+            Plan CR task annotations are missing, or a numeric annotation is not a number.
+        AssertionError: If any disk's xcopyUsed value doesn't match expected or an
+            observability annotation holds an unexpected value.
     """
     migration_uid: str = get_migration_uid(plan=plan)
     LOGGER.info(f"Checking xcopyUsed for migration '{migration_uid}'")
@@ -1313,8 +1418,11 @@ def verify_xcopy_used_per_datastore(
     supplies MoRef IDs and expected values; populate pod logs use datastore display names.
 
     Cross-verifies XCOPY usage via both populate pod logs and Plan CR task annotations
-    per datastore. Uses cached logs from fixture_store if available (captured during
-    migration), otherwise queries live pods.
+    per datastore. Also verifies the storage-offload observability annotations Forklift
+    propagates to the Plan CR tasks (result, copyDurationSeconds, storageVendor,
+    cloneMethod, storageProtocol, provisionedBytes, allocatedBytes). Uses cached logs
+    from fixture_store if available (captured during migration), otherwise queries
+    live pods.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client for API interactions.
@@ -1333,8 +1441,10 @@ def verify_xcopy_used_per_datastore(
 
     Raises:
         ValueError: If mappings are invalid, populate pods are missing, a log datastore
-            cannot be matched, or Plan CR task annotations are missing.
-        AssertionError: If any disk's xcopyUsed value does not match its datastore expectation.
+            cannot be matched, Plan CR task annotations are missing, or a numeric
+            annotation is not a number.
+        AssertionError: If any disk's xcopyUsed value does not match its datastore
+            expectation or an observability annotation holds an unexpected value.
     """
     if set(expected_xcopy_by_datastore_id.keys()) != set(datastore_names_by_id.keys()):
         raise ValueError(
