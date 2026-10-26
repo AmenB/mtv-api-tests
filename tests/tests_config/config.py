@@ -14,6 +14,9 @@ snapshots_interval: int = 2
 mins_before_cutover: int = 5
 plan_wait_timeout: int = 3600
 smb_max_channels: int = 4  # Hyper-V Provider spec.settings.smbMaxChannels when pre_copy_source_disks is enabled
+# Shared Multus namespace for tests whose VMs land in a dedicated target namespace: pods may
+# only reference NADs from their own namespace or "default", so NADs go to "default".
+default_multus_namespace: str = "default"
 tests_params: dict = {
     "test_sanity_warm_mtv_migration": {
         "virtual_machines": [
@@ -759,7 +762,7 @@ tests_params: dict = {
         "preserve_static_ips": True,
         "enable_nested_virtualization": False,
         "vm_target_namespace": f"mtv-vms-warm-comprehensive-{uuid.uuid4().hex[:4]}",
-        "multus_namespace": "default",  # Cross-namespace NAD access
+        "multus_namespace": default_multus_namespace,  # Cross-namespace NAD access
         # Keys must be Provider.ProviderType string values (e.g. "vsphere") or "default".
         # vsphere uses .FileName; default truncates VmName to stay within 63 chars.
         "pvc_name_template": {
@@ -822,7 +825,7 @@ tests_params: dict = {
             }
         },
         "vm_target_namespace": f"mtv-vms-cold-comprehensive-{uuid.uuid4().hex[:4]}",
-        "multus_namespace": "default",  # Cross-namespace NAD access
+        "multus_namespace": default_multus_namespace,  # Cross-namespace NAD access
         "guest_agent_timeout": 600,
     },
     "test_post_hook_retain_failed_vm": {
@@ -978,6 +981,7 @@ tests_params: dict = {
         "target_power_state": "off",
         "post_hook": {"expected_result": "fail"},
         "vm_target_namespace": f"mtv-vms-archive-{uuid.uuid4().hex[:4]}",
+        "multus_namespace": default_multus_namespace,
     },
     "test_standalone_di_vsphere": {
         "virtual_machines": [
