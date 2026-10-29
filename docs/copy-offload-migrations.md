@@ -414,8 +414,9 @@ Forklift propagates from the volume populator to the `DiskTransfer` tasks of the
 `copyDurationSeconds` and `provisionedBytes` must be positive numbers, `allocatedBytes` must not be
 negative, and `storageVendor`, `cloneMethod`, and `storageProtocol` must be present. Forklift reports
 these on both XCOPY and software-fallback copies, so the fallback classes rely on the same checks.
-These annotations were introduced by the MTV-6086 epic, so the checks require an MTV release that
-propagates them (recent 2.12.z releases and MTV 5.0.0).
+These annotations were introduced by the MTV-6086 epic; the checks require an MTV release that
+propagates them (2.12.6 and newer, including MTV 5.0.0) and are skipped automatically on older
+releases via a cluster MTV version check.
 
 > **Warning:** `non_xcopy_datastore_id` must point to a real datastore that does not support XCOPY/VAAI. If it is missing, the `mixed_datastore_config` fixture fails the class
 > before migration starts.

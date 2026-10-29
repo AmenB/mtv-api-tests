@@ -8,6 +8,7 @@ including credential management, cloud-init readiness checks, and XCOPY validati
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from collections import defaultdict
@@ -39,6 +40,7 @@ from utilities.copyoffload_plan_secret import wait_for_copyoffload_plan_secret
 from utilities.mtv_migration import get_migration_for_plan, wait_for_migration_complate
 from utilities.post_migration import get_ssh_credentials_from_provider_config
 from utilities.resources import create_and_store_resource
+from utilities.utils import has_mtv_minimum_version
 
 from libs.base_provider import BaseProvider
 from libs.forklift_inventory import VsphereForkliftInventory
@@ -62,6 +64,9 @@ _POPULATE_POD_NAME_PREFIX = "populate-"
 # Phases where the vSphere copy-offload scheduler assigns cost=0 to a VM.
 _ZERO_COST_VM_PHASES = frozenset({"CreateVM", "PostHook", "Completed", "Canceled"})
 _DISK_TRANSFER_STEP_NAME = "DiskTransfer"
+# First MTV release propagating the full MTV-6086 storage-offload observability annotation set to
+# Plan DiskTransfer task annotations (xcopyUsed alone shipped earlier, in 2.12.5 via MTV-6365).
+_OFFLOAD_ANNOTATIONS_MIN_MTV_VERSION = "2.12.6"
 
 
 def apply_copyoffload_vm_name_override(
@@ -994,6 +999,7 @@ def _get_disk_transfer_tasks(plan: Plan) -> list[Any]:
     return tasks
 
 
+# DiskTransfer task objects are dynamic Kubernetes resources without a typed wrapper, hence Any.
 def _get_task_annotation_value(task: Any, plan_name: str, annotation_name: str) -> str:
     """Read a required annotation from a Plan DiskTransfer task.
 
@@ -1018,6 +1024,7 @@ def _get_task_annotation_value(task: Any, plan_name: str, annotation_name: str) 
     return value
 
 
+# DiskTransfer task objects are dynamic Kubernetes resources without a typed wrapper, hence Any.
 def _get_xcopy_used_annotation(task: Any, plan_name: str) -> str:
     """Extract and validate the xcopyUsed annotation from a DiskTransfer task.
 
@@ -1034,8 +1041,9 @@ def _get_xcopy_used_annotation(task: Any, plan_name: str) -> str:
     return _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name="xcopyUsed")
 
 
+# DiskTransfer task objects are dynamic Kubernetes resources without a typed wrapper, hence Any.
 def _get_task_number_annotation(task: Any, plan_name: str, annotation_name: str) -> float:
-    """Read a Plan DiskTransfer task annotation and parse it as a number.
+    """Read a Plan DiskTransfer task annotation and parse it as a finite number.
 
     Args:
         task (Any): A DiskTransfer task object from Plan CR migration status.
@@ -1046,19 +1054,44 @@ def _get_task_number_annotation(task: Any, plan_name: str, annotation_name: str)
         float: The parsed annotation value.
 
     Raises:
-        ValueError: If the annotation is missing or its value is not a number.
+        ValueError: If the annotation is missing or its value is not a finite number.
     """
     value = _get_task_annotation_value(task=task, plan_name=plan_name, annotation_name=annotation_name)
+    task_name = getattr(task, "name", "<unknown>")
     try:
-        return float(value)
+        number = float(value)
     except ValueError as exc:
-        task_name = getattr(task, "name", "<unknown>")
         raise ValueError(
             f"DiskTransfer task '{task_name}' in Plan '{plan_name}': annotation '{annotation_name}' "
             f"value '{value}' is not a number"
         ) from exc
+    if not math.isfinite(number):
+        raise ValueError(
+            f"DiskTransfer task '{task_name}' in Plan '{plan_name}': annotation '{annotation_name}' "
+            f"value '{value}' is not a finite number"
+        )
+    return number
 
 
+def _offload_annotations_supported(ocp_admin_client: DynamicClient) -> bool:
+    """Check whether the cluster's MTV release propagates the offload observability annotations.
+
+    Args:
+        ocp_admin_client (DynamicClient): OpenShift admin client for the MTV version query.
+
+    Returns:
+        bool: True when MTV is at least _OFFLOAD_ANNOTATIONS_MIN_MTV_VERSION.
+    """
+    supported = has_mtv_minimum_version(_OFFLOAD_ANNOTATIONS_MIN_MTV_VERSION, client=ocp_admin_client)
+    if not supported:
+        LOGGER.info(
+            f"MTV below {_OFFLOAD_ANNOTATIONS_MIN_MTV_VERSION} does not propagate the storage-offload "
+            "observability annotations (MTV-6086); skipping their verification"
+        )
+    return supported
+
+
+# DiskTransfer task objects are dynamic Kubernetes resources without a typed wrapper, hence Any.
 def _verify_task_offload_annotations(task: Any, plan_name: str) -> None:
     """Verify storage-offload observability annotations on a Plan DiskTransfer task.
 
@@ -1074,7 +1107,7 @@ def _verify_task_offload_annotations(task: Any, plan_name: str) -> None:
         plan_name (str): Plan name for error context.
 
     Raises:
-        ValueError: If an annotation is missing or a numeric annotation is not a number.
+        ValueError: If an annotation is missing or a numeric annotation is not a finite number.
         AssertionError: If result is not "success", copyDurationSeconds or
             provisionedBytes is not positive, or allocatedBytes is negative.
     """
@@ -1139,18 +1172,22 @@ def _verify_xcopy_plan_annotations(
     plan: Plan,
     expected_xcopy_used: bool,
     expected_task_count: int,
+    offload_annotations_supported: bool,
 ) -> None:
     """Verify xcopyUsed and storage-offload annotations on Plan CR DiskTransfer tasks.
 
     After copy-offload migrations, Forklift propagates xcopyUsed from populate pods
     to Plan CR task annotations. This cross-verifies the Plan CR against expected values
-    and verifies the storage-offload observability annotations on each task.
+    and verifies the storage-offload observability annotations on each task when the
+    cluster's MTV release propagates them.
 
     Args:
         plan (Plan): The Plan CR resource with completed migration status.
         expected_xcopy_used (bool): Expected XCOPY usage (True -> xcopyUsed="1", False -> xcopyUsed="0").
         expected_task_count (int): Number of populate pods verified from logs; must match
             DiskTransfer task count on the Plan.
+        offload_annotations_supported (bool): Whether the cluster's MTV release propagates the
+            storage-offload observability annotations; when False those checks are skipped.
 
     Raises:
         ValueError: If DiskTransfer task count differs from expected_task_count, tasks are
@@ -1173,7 +1210,8 @@ def _verify_xcopy_plan_annotations(
             f"Plan '{plan.name}' DiskTransfer task '{task_name}': "
             f"expected xcopyUsed='{expected_str}', got xcopyUsed='{actual}'"
         )
-        _verify_task_offload_annotations(task=task, plan_name=plan.name)
+        if offload_annotations_supported:
+            _verify_task_offload_annotations(task=task, plan_name=plan.name)
 
     LOGGER.info(
         f"Plan CR annotation verification passed: all {len(tasks)} DiskTransfer task(s) have xcopyUsed='{expected_str}'"
@@ -1237,13 +1275,14 @@ def _verify_xcopy_plan_annotations_per_datastore(
     expected_xcopy_by_datastore_id: dict[str, bool],
     datastore_names_by_id: dict[str, str],
     expected_task_count: int,
+    offload_annotations_supported: bool,
 ) -> None:
     """Verify per-datastore xcopyUsed and storage-offload annotations on Plan CR DiskTransfer tasks.
 
     Cross-verifies Plan CR task annotations against per-datastore expected values.
     Parses the datastore display name from each task name and maps it back to the
     expected xcopyUsed value. Also verifies the storage-offload observability
-    annotations on each task.
+    annotations on each task when the cluster's MTV release propagates them.
 
     Args:
         plan (Plan): The Plan CR resource with completed migration status.
@@ -1253,6 +1292,8 @@ def _verify_xcopy_plan_annotations_per_datastore(
             name for correlating task names.
         expected_task_count (int): Number of populate pods verified from logs; must match
             DiskTransfer task count on the Plan.
+        offload_annotations_supported (bool): Whether the cluster's MTV release propagates the
+            storage-offload observability annotations; when False those checks are skipped.
 
     Raises:
         ValueError: If DiskTransfer task count differs from expected_task_count, tasks are
@@ -1293,7 +1334,8 @@ def _verify_xcopy_plan_annotations_per_datastore(
             f"(datastore '{datastore_name}'): expected xcopyUsed='{expected_str}', "
             f"got xcopyUsed='{actual}'"
         )
-        _verify_task_offload_annotations(task=task, plan_name=plan.name)
+        if offload_annotations_supported:
+            _verify_task_offload_annotations(task=task, plan_name=plan.name)
 
     LOGGER.info(f"Plan CR per-datastore annotation verification passed for all {len(tasks)} DiskTransfer task(s)")
 
@@ -1310,8 +1352,9 @@ def verify_xcopy_used(
     Verifies XCOPY usage via both populate pod logs and Plan CR task annotations.
     Also verifies the storage-offload observability annotations Forklift propagates to
     the Plan CR tasks (result, copyDurationSeconds, storageVendor, cloneMethod,
-    storageProtocol, provisionedBytes, allocatedBytes). Uses cached logs from
-    fixture_store if available (captured during migration), otherwise queries live pods.
+    storageProtocol, provisionedBytes, allocatedBytes) when the cluster runs MTV
+    2.12.6 or newer. Uses cached logs from fixture_store if available (captured during
+    migration), otherwise queries live pods.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client for API interactions.
@@ -1325,7 +1368,7 @@ def verify_xcopy_used(
 
     Raises:
         ValueError: If no populate pods found, xcopyUsed not found in pod logs,
-            Plan CR task annotations are missing, or a numeric annotation is not a number.
+            Plan CR task annotations are missing, or a numeric annotation is not a finite number.
         AssertionError: If any disk's xcopyUsed value doesn't match expected or an
             observability annotation holds an unexpected value.
     """
@@ -1365,6 +1408,7 @@ def verify_xcopy_used(
         plan=plan,
         expected_xcopy_used=expected_xcopy_used,
         expected_task_count=len(pod_logs),
+        offload_annotations_supported=_offload_annotations_supported(ocp_admin_client=ocp_admin_client),
     )
 
 
@@ -1420,9 +1464,9 @@ def verify_xcopy_used_per_datastore(
     Cross-verifies XCOPY usage via both populate pod logs and Plan CR task annotations
     per datastore. Also verifies the storage-offload observability annotations Forklift
     propagates to the Plan CR tasks (result, copyDurationSeconds, storageVendor,
-    cloneMethod, storageProtocol, provisionedBytes, allocatedBytes). Uses cached logs
-    from fixture_store if available (captured during migration), otherwise queries
-    live pods.
+    cloneMethod, storageProtocol, provisionedBytes, allocatedBytes) when the cluster
+    runs MTV 2.12.6 or newer. Uses cached logs from fixture_store if available
+    (captured during migration), otherwise queries live pods.
 
     Args:
         ocp_admin_client (DynamicClient): OpenShift admin client for API interactions.
@@ -1442,7 +1486,7 @@ def verify_xcopy_used_per_datastore(
     Raises:
         ValueError: If mappings are invalid, populate pods are missing, a log datastore
             cannot be matched, Plan CR task annotations are missing, or a numeric
-            annotation is not a number.
+            annotation is not a finite number.
         AssertionError: If any disk's xcopyUsed value does not match its datastore
             expectation or an observability annotation holds an unexpected value.
     """
@@ -1514,6 +1558,7 @@ def verify_xcopy_used_per_datastore(
         expected_xcopy_by_datastore_id=expected_xcopy_by_datastore_id,
         datastore_names_by_id=datastore_names_by_id,
         expected_task_count=len(pod_logs),
+        offload_annotations_supported=_offload_annotations_supported(ocp_admin_client=ocp_admin_client),
     )
 
 
