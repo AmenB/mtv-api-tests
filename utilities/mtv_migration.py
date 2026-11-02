@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from ocp_resources.migration import Migration
 from ocp_resources.network_map import NetworkMap
 from ocp_resources.plan import Plan
+from ocp_resources.pod import Pod
 from ocp_resources.provider import Provider
 from ocp_resources.storage_map import StorageMap
 from pytest_testconfig import py_config
@@ -26,7 +27,16 @@ from utilities.resources import create_and_store_resource
 from utilities.utils import gen_network_map_list
 
 if TYPE_CHECKING:
-    from kubernetes.dynamic import DynamicClient
+    from kubernetes.dynamic import DynamicClient, ResourceInstance
+
+# Forklift virt-v2v conversion pod label; shared by all conversion-pod observers and helpers.
+CONVERSION_POD_LABEL_SELECTOR: str = "forklift.app=virt-v2v"
+
+# Test-config keys renamed to their Kubernetes API spec field names.
+_VM_CONFIG_TO_SPEC_KEY_RENAMES: dict[str, str] = {
+    "migrate_shared_disks": "migrateSharedDisks",
+    "instance_type": "instanceType",
+}
 
 LOGGER = get_logger(__name__)
 
@@ -39,11 +49,6 @@ _VM_DICT_TEST_ONLY_KEYS: frozenset[str] = frozenset({
     "preserve_name_format",
     "snapshots_before_migration",
 })
-
-# Test-config keys renamed to their Kubernetes API spec field names.
-_VM_CONFIG_TO_SPEC_KEY_RENAMES: dict[str, str] = {
-    "migrate_shared_disks": "migrateSharedDisks",
-}
 
 # Keys consumed directly by create_and_store_resource that create_plan_resource does not
 # set itself. Passing any of these via additional_plan_options could make create_and_store_resource
@@ -76,6 +81,31 @@ def get_migration_for_plan(plan: Plan) -> Migration:
                     return migration
 
     raise MigrationNotFoundError(f"Migration CR not found for Plan '{plan.name}' in namespace '{plan.namespace}'")
+
+
+def get_conversion_pods(
+    client: "DynamicClient",
+    namespace: str,
+    migration_uid: str,
+) -> list["ResourceInstance"]:
+    """List raw virt-v2v conversion pod snapshots for one migration.
+
+    Args:
+        client (DynamicClient): OpenShift client used to query Pods.
+        namespace (str): Namespace the conversion pods run in (the Plan target namespace).
+        migration_uid (str): UID of the Migration whose conversion pods are listed.
+
+    Returns:
+        list[ResourceInstance]: Raw Pod snapshots labeled for the given migration.
+    """
+    return list(
+        Pod.get(
+            client=client,
+            namespace=namespace,
+            label_selector=f"{CONVERSION_POD_LABEL_SELECTOR},migration={migration_uid}",
+            raw=True,
+        )
+    )
 
 
 def _get_failed_migration_step(plan: Plan, vm_name: str) -> str:
@@ -234,6 +264,8 @@ def create_plan_resource(
     rdm_as_lun: bool | None = None,
     pre_copy_source_disks: bool = False,
     convertor_node_selector: dict[str, str] | None = None,
+    convertor_labels: dict[str, str] | None = None,
+    convertor_affinity: dict[str, Any] | None = None,
     # Any: Plan option values are heterogeneous/provider-defined and intentionally untyped to pass arbitrary kubevirt Plan spec fields through.
     additional_plan_options: dict[str, Any] | None = None,
 ) -> Plan:
@@ -281,6 +313,10 @@ def create_plan_resource(
             qemu-img, then in-place virt-v2v). Only applies to Hyper-V migrations. Defaults to False.
         convertor_node_selector (dict[str, str] | None): Optional selector for virt-v2v conversion and vSphere
             warm-migration CDI importer pods. Defaults to None.
+        convertor_labels (dict[str, str] | None): Optional labels applied to virt-v2v convertor pods
+            (Plan convertorLabels). Defaults to None.
+        convertor_affinity (dict[str, Any] | None): Optional Kubernetes pod affinity/anti-affinity
+            for virt-v2v convertor pods (Plan convertorAffinity). Defaults to None.
         additional_plan_options (dict[str, Any] | None): Additional Plan constructor options not already handled by
             this helper. Defaults to None. Keys consumed by create_and_store_resource ("name", "kind_dict", "yaml_file",
             "test_name") are not allowed.
@@ -364,6 +400,16 @@ def create_plan_resource(
 
     if convertor_node_selector is not None:
         plan_kwargs["convertor_node_selector"] = convertor_node_selector
+
+    if convertor_labels is not None:
+        # Requires openshift-python-wrapper Plan support for convertorLabels (RedHatQE/openshift-python-wrapper#2850);
+        # on wrapper versions without it, Plan creation raises TypeError (no silent omission).
+        plan_kwargs["convertor_labels"] = convertor_labels
+
+    if convertor_affinity is not None:
+        # Requires openshift-python-wrapper Plan support for convertorAffinity (RedHatQE/openshift-python-wrapper#2850);
+        # on wrapper versions without it, Plan creation raises TypeError (no silent omission).
+        plan_kwargs["convertor_affinity"] = convertor_affinity
 
     # Add copy-offload specific parameters if enabled
     if copyoffload:
@@ -879,9 +925,6 @@ def wait_for_concurrent_migration_execution(
         timeout: Timeout in seconds to wait for simultaneous execution.
         callbacks: Optional dict mapping plan names to status poll callbacks. Callbacks are
             invoked with the current status string for their respective plan on each poll.
-
-    Returns:
-        None
 
     Raises:
         AssertionError: If plans do not execute simultaneously or if any plan completes early.
