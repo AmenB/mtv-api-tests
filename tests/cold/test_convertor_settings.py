@@ -38,14 +38,16 @@ if TYPE_CHECKING:
 @pytest.mark.min_mtv_version("5.0.0")
 @pytest.mark.usefixtures("cleanup_migrated_vms")
 class TestConvertorSettingsAndInstanceType:
-    """Cold-migrate a vSphere VM with a convertor node selector and a per-VM instanceType and verify both.
+    """Cold-migrate a vSphere VM with convertor selector, labels, affinity and a per-VM instanceType.
 
     Purpose/Regression:
         Positive coverage for MTV-7085 Plan settings: a Plan's convertorNodeSelector
         must be inherited by the virt-v2v convertor pod, which must run on the worker
-        node whose built-in kubernetes.io/hostname label the selector pins, and a
-        per-VM instanceType must make the migrated
-        VM take its CPU and memory from the instancetype instead of the source VM.
+        node whose built-in kubernetes.io/hostname label the selector pins; the Plan's
+        convertorLabels and convertorAffinity must be inherited by the convertor pod
+        as pod labels and a preferred pod affinity rule; and a per-VM instanceType
+        must make the migrated VM take its CPU and memory from the instancetype
+        instead of the source VM.
         There is no induced failure; the convertor checks must observe the
         short-lived pod while the migration is running.
 
@@ -68,13 +70,16 @@ class TestConvertorSettingsAndInstanceType:
         2. Create a StorageMap for the VM's disks and a NetworkMap for its
            networks. Confirm both are created.
         3. Create a cold Plan for the VM with the selected worker's built-in
-           kubernetes.io/hostname label as the convertor node selector and the
-           chosen cluster instancetype as the VM's instanceType. Check the Plan's
-           Ready condition is True and that its spec contains the convertor node
-           selector and the VM's instanceType.
+           kubernetes.io/hostname label as the convertor node selector, the
+           configured convertor labels, the configured preferred convertor pod
+           affinity, and the chosen cluster instancetype as the VM's instanceType.
+           Check the Plan's Ready condition is True and that its spec contains the
+           convertor node selector, convertor labels and affinity, and the VM's
+           instanceType.
         4. Run the migration. While it is running, confirm the virt-v2v convertor
-           pod carries the Plan's convertor node selector and is scheduled on the
-           selected worker. Check the migration reaches Succeeded.
+           pod carries the Plan's convertor node selector, labels and preferred
+           affinity rule and is scheduled on the selected worker. Check the migration
+           reaches Succeeded.
         5. Verify on the destination VM: it is powered on; its spec.instancetype
            references the chosen instancetype; its template carries no CPU or
            memory overrides; and the vCPU and memory reported by its VMI match the
@@ -84,13 +89,14 @@ class TestConvertorSettingsAndInstanceType:
 
     Expected result:
         The migration succeeds, the convertor pod is observed during the migration
-        carrying the convertor node selector and running on the selected worker, and
-        the migrated VM's CPU and memory come from the configured instancetype with
-        no source-derived overrides. On failure, inspect the Migration CR status
-        and its VM entries for the failed step, the Plan conditions and its
-        convertorNodeSelector and vms[].instanceType fields, the convertor pod spec
-        (nodeSelector, nodeName) in the Plan target namespace, and the migrated
-        VM spec.instancetype and template domain.
+        carrying the convertor node selector, labels and preferred affinity rule and
+        running on the selected worker, and the migrated VM's CPU and memory come from
+        the configured instancetype with no source-derived overrides. On failure,
+        inspect the Migration CR status and its VM entries for the failed step, the
+        Plan conditions and its convertorNodeSelector, convertorLabels,
+        convertorAffinity and vms[].instanceType fields, the convertor pod spec
+        (nodeSelector, affinity) and metadata labels in the Plan target namespace,
+        and the migrated VM spec.instancetype and template domain.
     """
 
     storage_map: StorageMap
@@ -185,7 +191,7 @@ class TestConvertorSettingsAndInstanceType:
         source_provider_inventory: "ForkliftInventory",
         selected_worker_node: dict[str, str],
     ) -> None:
-        """Create the cold Plan with the convertor node selector and the VM's instanceType.
+        """Create the cold Plan with convertor settings and the VM's instanceType.
 
         Args:
             prepared_plan: Plan configuration with the prepared source VM.
@@ -203,6 +209,8 @@ class TestConvertorSettingsAndInstanceType:
         populate_vm_ids(prepared_plan, source_provider_inventory)
 
         convertor_node_selector = {"kubernetes.io/hostname": selected_worker_node["hostname_label"]}
+        convertor_labels = prepared_plan["convertor_labels"]
+        convertor_affinity = prepared_plan["convertor_affinity"]
 
         self.__class__.plan_resource = create_plan_resource(
             fixture_store=fixture_store,
@@ -216,6 +224,8 @@ class TestConvertorSettingsAndInstanceType:
             target_power_state=prepared_plan["target_power_state"],
             warm_migration=prepared_plan["warm_migration"],
             convertor_node_selector=convertor_node_selector,
+            convertor_labels=convertor_labels,
+            convertor_affinity=convertor_affinity,
         )
         assert self.__class__.plan_resource, "Plan creation failed"
 
@@ -223,6 +233,12 @@ class TestConvertorSettingsAndInstanceType:
         assert plan_spec.get("convertorNodeSelector") == convertor_node_selector, (
             f"Plan convertorNodeSelector is '{plan_spec.get('convertorNodeSelector')}', "
             f"expected '{convertor_node_selector}'"
+        )
+        assert plan_spec.get("convertorLabels") == convertor_labels, (
+            f"Plan convertorLabels is '{plan_spec.get('convertorLabels')}', expected '{convertor_labels}'"
+        )
+        assert plan_spec.get("convertorAffinity") == convertor_affinity, (
+            f"Plan convertorAffinity is '{plan_spec.get('convertorAffinity')}', expected '{convertor_affinity}'"
         )
         plan_vm = plan_spec["vms"][0]
         assert plan_vm.get("instanceType") == prepared_plan["virtual_machines"][0]["instance_type"], (
@@ -232,17 +248,20 @@ class TestConvertorSettingsAndInstanceType:
 
     def test_migrate_vms(
         self,
+        prepared_plan: dict[str, Any],
         fixture_store: dict[str, Any],
         ocp_admin_client: "DynamicClient",
         target_namespace: str,
         selected_worker_node: dict[str, str],
     ) -> None:
-        """Execute the migration while verifying convertor pod selector and placement.
+        """Execute the migration while verifying convertor pod selector, labels, affinity and placement.
 
-        The convertor pod is short-lived, so its node selector and node placement are
-        checked from a status-poll callback while the migration is running.
+        The convertor pod is short-lived, so its node selector, labels, preferred
+        affinity and node placement are checked from a status-poll callback while the
+        migration is running.
 
         Args:
+            prepared_plan: Plan configuration with the convertor labels and affinity.
             fixture_store: Fixture store for resource tracking and cleanup.
             ocp_admin_client: OpenShift admin client.
             target_namespace: Namespace for migration resources.
@@ -256,6 +275,8 @@ class TestConvertorSettingsAndInstanceType:
             plan=self.__class__.plan_resource,
             expected_node_name=selected_worker_node["node_name"],
             expected_node_selector=convertor_node_selector,
+            expected_labels=prepared_plan["convertor_labels"],
+            expected_affinity=prepared_plan["convertor_affinity"],
         ) as convertor_pod_observer:
             execute_migration(
                 ocp_admin_client=ocp_admin_client,

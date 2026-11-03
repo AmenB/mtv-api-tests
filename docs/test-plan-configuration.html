@@ -759,6 +759,16 @@ become per-test clone names even when the raw plan entry does not set <code>clon
 <td>Node selector for virt-v2v convertor pods (<code>convertorNodeSelector</code>). Tests verify the pod inherits the selector and runs on the selected worker (pinned via <code>kubernetes.io/hostname</code>) during migration.</td>
 </tr>
 <tr>
+<td><code>convertor_labels</code></td>
+<td>No</td>
+<td>Labels applied to virt-v2v convertor pods (<code>convertorLabels</code>). Tests verify the pod metadata labels during migration.</td>
+</tr>
+<tr>
+<td><code>convertor_affinity</code></td>
+<td>No</td>
+<td>Kubernetes pod affinity for virt-v2v convertor pods (<code>convertorAffinity</code>). Use preferred (not required) rules — required rules can make pods unschedulable combined with the convertor node selector.</td>
+</tr>
+<tr>
 <td><code>pvc_name_template_use_generate_name</code></td>
 <td>No</td>
 <td>When <code>True</code>, post-checks treat the rendered PVC name as a prefix because Kubernetes adds a generated suffix.</td>
@@ -1132,7 +1142,8 @@ runtime name:</p>
 
 <p><code>create_plan_resource()</code> accepts only the flags that map onto the Plan CR: <code>warm_migration</code>, <code>copyoffload</code>, <code>preserve_static_ips</code>, <code>pvc_name_template</code>,
 <code>network_name_template</code>, <code>pvc_name_template_use_generate_name</code>, <code>target_node_selector</code>, <code>target_labels</code>, <code>target_affinity</code>, <code>vm_target_namespace</code>, <code>migrate_shared_disks</code>, <code>target_power_state</code>,
-<code>enable_nested_virtualization</code>, <code>xfs_compatibility</code>, <code>run_preflight_inspection</code>, <code>rdm_as_lun</code>, and <code>convertor_node_selector</code>. Additional Plan constructor fields can be passed through
+<code>enable_nested_virtualization</code>, <code>xfs_compatibility</code>, <code>run_preflight_inspection</code>, <code>rdm_as_lun</code>, <code>convertor_node_selector</code>,
+<code>convertor_labels</code> and <code>convertor_affinity</code>. Additional Plan constructor fields can be passed through
 <code>additional_plan_options</code>; everything else is consumed by fixtures or by post-migration checks.</p>
 <h2 id="runtime-fields-added-during-preparation">Runtime Fields Added During Preparation</h2>
 <p>These fields are derived at runtime. You do <strong>not</strong> write them yourself in <code>tests_params</code>.</p>

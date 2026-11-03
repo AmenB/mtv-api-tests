@@ -35,11 +35,12 @@ LOGGER = get_logger(__name__)
 
 
 class ConvertorPodObserver:
-    """Verify virt-v2v convertor pod selector inheritance and placement during a migration.
+    """Verify virt-v2v convertor pod selector, labels, affinity and placement during a migration.
 
     Usable as an ``on_status_poll`` callback for ``execute_migration``: on every poll it
     looks up the migration's convertor pods in the Plan target namespace, asserts each
-    carries the Plan's convertor node selector, and records pods scheduled on the
+    carries the Plan's convertor node selector (and, when configured, the convertor
+    labels and preferred pod-affinity rule), and records pods scheduled on the
     expected node. Convertor pods are short-lived, so the checks must run while the
     migration is in progress, not after it completes.
 
@@ -54,6 +55,8 @@ class ConvertorPodObserver:
         plan: Plan,
         expected_node_name: str,
         expected_node_selector: dict[str, str],
+        expected_labels: dict[str, str] | None = None,
+        expected_affinity: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the observer for one migration.
 
@@ -62,10 +65,17 @@ class ConvertorPodObserver:
             expected_node_name (str): Worker node the convertor pods must run on.
             expected_node_selector (dict[str, str]): Node selector the convertor pods
                 must inherit from the Plan's convertorNodeSelector.
+
+            expected_labels (dict[str, str] | None): Convertor labels the pods must
+                inherit from the Plan's convertorLabels. None skips the check.
+            expected_affinity (dict[str, Any] | None): Preferred pod-affinity rule the
+                pods must inherit from the Plan's convertorAffinity. None skips the check.
         """
         self._plan = plan
         self._expected_node_name = expected_node_name
         self._expected_node_selector = expected_node_selector
+        self._expected_labels = expected_labels
+        self._expected_affinity = expected_affinity
         self._migration_uid: str | None = None
         self._observed_pod_names: set[str] = set()
         self._watch_stop_event = threading.Event()
@@ -111,7 +121,7 @@ class ConvertorPodObserver:
             self._watch_thread.join(timeout=_WATCH_SEGMENT_TIMEOUT_SECONDS * 2)
 
     def __call__(self, status: str) -> None:
-        """Check convertor pod selector and placement for the current migration state.
+        """Check convertor pod selector, labels, affinity and placement for the current migration state.
 
         Starts the background pod watch once the Migration UID is known, then checks the
         currently listed convertor pods.
@@ -120,7 +130,8 @@ class ConvertorPodObserver:
             status (str): Current migration status from the status poll.
 
         Raises:
-            AssertionError: If a convertor pod omits the Plan selector or runs on another node.
+            AssertionError: If a convertor pod omits the Plan selector, labels, affinity
+                or runs on another node.
             ValueError: If a convertor pod snapshot has malformed metadata.
         """
         if status == Plan.Status.FAILED:
@@ -229,14 +240,20 @@ class ConvertorPodObserver:
                 self._watch_consecutive_failures = 0
 
     def _check_pod(self, pod: ResourceInstance) -> None:
-        """Assert one convertor pod snapshot inherits the selector and runs on the expected node.
+        """Assert one convertor pod snapshot inherits the configured settings and runs on the expected node.
 
         Args:
             pod (ResourceInstance): Raw convertor pod snapshot.
 
         Raises:
-            AssertionError: If the pod omits the Plan selector or runs on another node.
+            AssertionError: If the pod omits the Plan selector, labels, affinity or runs
+                on another node.
             ValueError: If the pod snapshot has a malformed spec, nodeSelector, or nodeName.
+
+        Note:
+            Affinity verification covers only preferred pod-affinity terms (the suite
+            configures preferred rules exclusively); required rules and anti-affinity
+            are asserted at the Plan-spec level only.
         """
         # Raw Kubernetes API payload: the field shapes are not statically known.
         pod_dict: dict[str, Any] = pod.to_dict()
@@ -253,6 +270,12 @@ class ConvertorPodObserver:
             f"node selector {self._expected_node_selector}; pod nodeSelector: {pod_node_selector}"
         )
 
+        if self._expected_labels is not None:
+            self._check_pod_labels(pod=pod, expected_labels=self._expected_labels)
+
+        if self._expected_affinity is not None:
+            self._check_pod_affinity(pod=pod, pod_spec=pod_spec, expected_affinity=self._expected_affinity)
+
         node_name = pod_spec.get("nodeName")
         if node_name is not None and (not isinstance(node_name, str) or not node_name):
             raise ValueError(f"convertor pod '{pod_name}' has a malformed nodeName: {node_name!r}")
@@ -263,3 +286,50 @@ class ConvertorPodObserver:
             f"virt-v2v convertor pod '{pod_name}' ran on '{node_name}', expected '{self._expected_node_name}'"
         )
         self._observed_pod_names.add(pod_name)
+
+    def _check_pod_labels(self, pod: ResourceInstance, expected_labels: dict[str, str]) -> None:
+        """Assert one convertor pod carries the expected convertor labels.
+
+        Args:
+            pod (ResourceInstance): Raw convertor pod snapshot.
+            expected_labels (dict[str, str]): Convertor labels the pod must carry.
+
+        Raises:
+            AssertionError: If the pod metadata omits any expected convertor label.
+        """
+        pod_labels: dict[str, Any] = pod.get("metadata", {}).get("labels") or {}
+        assert all(pod_labels.get(key) == value for key, value in expected_labels.items()), (
+            f"virt-v2v convertor pod '{pod.metadata.name}' did not inherit Plan convertor "
+            f"labels {expected_labels}; pod labels: {pod_labels}"
+        )
+
+    def _check_pod_affinity(
+        self, pod: ResourceInstance, pod_spec: dict[str, Any], expected_affinity: dict[str, Any]
+    ) -> None:
+        """Assert one convertor pod carries the expected preferred pod-affinity terms.
+
+        Every preferred pod-affinity term configured in ``expected_affinity`` must appear
+        in the pod spec's affinity (subset match on the preferred terms list).
+
+        Args:
+            pod (ResourceInstance): Raw convertor pod snapshot.
+            pod_spec (dict[str, Any]): The pod's spec dict.
+            expected_affinity (dict[str, Any]): Plan convertorAffinity the pod must inherit.
+
+        Raises:
+            AssertionError: If the pod spec affinity omits any expected preferred term.
+        """
+        expected_terms: list[dict[str, Any]] = expected_affinity.get("podAffinity", {}).get(
+            "preferredDuringSchedulingIgnoredDuringExecution", []
+        )
+        actual_terms: list[dict[str, Any]] = (
+            (pod_spec.get("affinity") or {})
+            .get("podAffinity", {})
+            .get("preferredDuringSchedulingIgnoredDuringExecution", [])
+        )
+        missing_terms = [term for term in expected_terms if term not in actual_terms]
+        assert not missing_terms, (
+            f"virt-v2v convertor pod '{pod.metadata.name}' did not inherit Plan convertor "
+            f"affinity; missing preferred pod-affinity terms: {missing_terms}; "
+            f"pod affinity: {pod_spec.get('affinity')}"
+        )

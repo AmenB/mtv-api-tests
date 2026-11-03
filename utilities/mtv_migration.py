@@ -264,6 +264,8 @@ def create_plan_resource(
     rdm_as_lun: bool | None = None,
     pre_copy_source_disks: bool = False,
     convertor_node_selector: dict[str, str] | None = None,
+    convertor_labels: dict[str, str] | None = None,
+    convertor_affinity: dict[str, Any] | None = None,
     # Any: Plan option values are heterogeneous/provider-defined and intentionally untyped to pass arbitrary kubevirt Plan spec fields through.
     additional_plan_options: dict[str, Any] | None = None,
 ) -> Plan:
@@ -311,6 +313,10 @@ def create_plan_resource(
             qemu-img, then in-place virt-v2v). Only applies to Hyper-V migrations. Defaults to False.
         convertor_node_selector (dict[str, str] | None): Optional selector for virt-v2v conversion and vSphere
             warm-migration CDI importer pods. Defaults to None.
+        convertor_labels (dict[str, str] | None): Optional labels applied to virt-v2v convertor pods
+            (Plan convertorLabels). Defaults to None.
+        convertor_affinity (dict[str, Any] | None): Optional Kubernetes pod affinity/anti-affinity
+            for virt-v2v convertor pods (Plan convertorAffinity). Defaults to None.
         additional_plan_options (dict[str, Any] | None): Additional Plan constructor options not already handled by
             this helper. Defaults to None. Keys consumed by create_and_store_resource ("name", "kind_dict", "yaml_file",
             "test_name") are not allowed.
@@ -394,6 +400,16 @@ def create_plan_resource(
 
     if convertor_node_selector is not None:
         plan_kwargs["convertor_node_selector"] = convertor_node_selector
+
+    if convertor_labels is not None:
+        # Requires openshift-python-wrapper Plan support for convertorLabels (RedHatQE/openshift-python-wrapper#2850);
+        # on wrapper versions without it, Plan creation raises TypeError (no silent omission).
+        plan_kwargs["convertor_labels"] = convertor_labels
+
+    if convertor_affinity is not None:
+        # Requires openshift-python-wrapper Plan support for convertorAffinity (RedHatQE/openshift-python-wrapper#2850);
+        # on wrapper versions without it, Plan creation raises TypeError (no silent omission).
+        plan_kwargs["convertor_affinity"] = convertor_affinity
 
     # Add copy-offload specific parameters if enabled
     if copyoffload:

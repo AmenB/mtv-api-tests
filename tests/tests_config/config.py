@@ -875,6 +875,26 @@ tests_params: dict = {
         ],
         "warm_migration": False,
         "target_power_state": "on",
+        # Labels the convertor pods must carry (Plan convertorLabels).
+        "convertor_labels": {
+            "mtv-convertor": "qe",
+            "team": "mtv-7085",
+        },
+        # Preferred (not required) pod affinity for convertor pods — a required rule
+        # could make pods unschedulable together with the convertor node selector.
+        "convertor_affinity": {
+            "podAffinity": {
+                "preferredDuringSchedulingIgnoredDuringExecution": [
+                    {
+                        "podAffinityTerm": {
+                            "labelSelector": {"matchLabels": {"mtv-convertor": "qe"}},
+                            "topologyKey": "kubernetes.io/hostname",
+                        },
+                        "weight": 50,
+                    }
+                ]
+            }
+        },
     },
     "test_post_hook_retain_failed_vm": {
         "virtual_machines": [

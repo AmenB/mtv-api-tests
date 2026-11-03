@@ -287,6 +287,7 @@ imports are elided (`...`) — request only the fixtures each method needs.
 | `network_map_overrides` | Per-network destination overrides chosen by `source_ip_config`; `pod`/`multus`/`ignored` + optional `network_ip_mode` |
 | `network_name_template` | Forklift network-name template (e.g. `net-{{.NetworkType \| lower}}-{{.NetworkIndex}}`); asserted post-migration |
 | `convertor_node_selector` | Node selector for virt-v2v convertor pods; pod checked during migration |
+| `convertor_labels`, `convertor_affinity` | Labels / preferred pod affinity for convertor pods; checked on pod during migration |
 
 The boolean flags in this table use `plan.get("flag", False)` in code. Exceptions:
 `inventory_timeout` is numeric and defaults via `plan.get("inventory_timeout", 300)`;
