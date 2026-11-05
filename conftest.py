@@ -581,7 +581,8 @@ def pytest_collection_modifyitems(session, config, items):
                 for item in items:
                     is_vsphere_scoped = "vsphere" in item.keywords and configured_provider_marker not in item.keywords
                     if is_vsphere_scoped or any(
-                        kw in item.keywords for kw in ("copyoffload", "shared_disk", "deep_inspection", "aap", "luks")
+                        kw in item.keywords
+                        for kw in ("copyoffload", "shared_disk", "deep_inspection", "aap", "luks", "toehold")
                     ):
                         item.add_marker(vsphere_only_skip)
 

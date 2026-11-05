@@ -128,6 +128,44 @@
     }
   },
 
+  "vsphere-toehold": {
+    "type": "vsphere",
+    "version": "<SERVER VERSION>",
+    "fqdn": "SERVER FQDN/IP",
+    "api_url": "<SERVER FQDN/IP>/sdk",
+    "username": "USERNAME",
+    "password": "PASSWORD",  # pragma: allowlist secret
+    "guest_vm_linux_user": "LINUX VMS USERNAME",
+    "guest_vm_linux_password": "LINUX VMS PASSWORD",  # pragma: allowlist secret
+    # Toehold (Copy Appliance) migration: MTV deploys a copy appliance VM inside
+    # vSphere and exposes the disks through it (MTV 5.0, feature_copy_appliance).
+    # Do NOT configure vddk_init_image for this provider - toehold replaces the VDDK path.
+    "toehold": {
+      # vSphere datastore for the copy appliance template and VMs
+      # Allow ~10GB of storage per copy appliance VM
+      "datastore": "datastore1",
+
+      # Dedicated vCenter folder for the copy appliance resources
+      # (recommended: easy to spot leftover resources)
+      "folder": "/Datacenter/vm/toehold-test",
+
+      # Port group with DHCP, accessible from the MTV migration network
+      "network": "VM Network",
+
+      # Resource pool on which the copy appliance VMs run
+      "resource_pool": "/Datacenter/host/<ESXI HOST>/Resources",
+
+      # OCI containerdisk image embedding the base qcow2 for the appliance
+      "base_disk_container_image": "registry.redhat.io/rhel9/rhel-guest-image:latest",
+
+      # Optional: builder image and OVF hardware overrides
+      # (default to the ForkliftController copy_appliance_template_* settings)
+      # "builder_image": "quay.io/mnecas0/copy-appliance-template-builder:latest",
+      # "cpu": 2,
+      # "memory_mib": 4096
+    }
+  },
+
   "vsphere-esxi": {
     "type": "vsphere",
     "version": "<SERVER VERSION>",

@@ -445,6 +445,11 @@ ignores extra keys on other provider types.</p>
 <td>Nested copy-offload block. See <a href="#vsphere-copy-offload">vSphere copy-offload</a>.</td>
 </tr>
 <tr>
+<td><code>toehold</code></td>
+<td>No</td>
+<td>Nested toehold (copy appliance) block. See <a href="#vsphere-toehold">vSphere toehold</a>.</td>
+</tr>
+<tr>
 <td><code>guest_vm_linux_user</code> / <code>guest_vm_linux_password</code></td>
 <td>No</td>
 <td>Linux guest SSH credentials.</td>
@@ -1089,6 +1094,61 @@ a <code>ValueError</code> when this field is missing.</p>
 <code>COPYOFFLOAD_&lt;FIELD_IN_UPPERCASE&gt;</code>, so examples include <code>COPYOFFLOAD_STORAGE_HOSTNAME</code>, <code>COPYOFFLOAD_STORAGE_USERNAME</code>, <code>COPYOFFLOAD_STORAGE_PASSWORD</code>, <code>COPYOFFLOAD_ONTAP_SVM</code>,
 <code>COPYOFFLOAD_ESXI_HOST</code>, <code>COPYOFFLOAD_ESXI_USER</code>, and <code>COPYOFFLOAD_ESXI_PASSWORD</code>. <code>storage_secret_extra</code> has its own JSON-object override, <code>COPYOFFLOAD_STORAGE_SECRET_EXTRA</code>.</p>
 </blockquote>
+<h3 id="vsphere-toehold">vSphere toehold</h3>
+<p>The <code>toehold</code> block is only meaningful for vSphere entries. It configures the toehold (copy appliance) transfer path, where MTV deploys a copy appliance VM inside vSphere and
+exposes the source disks through it over NBD instead of using VDDK (MTV 5.0, <code>feature_copy_appliance</code>). The toehold fixture validates the block before toehold tests run,
+creates a <code>CopyApplianceTemplate</code> for the provider, and patches the provider's <code>copyAppliance*</code> placement settings. The provider entry must not configure <code>vddk_init_image</code>.</p>
+<p>Keep a separate vSphere entry for toehold runs (like the example's <code>vsphere-toehold</code>) so switching between transfer paths is a <code>source_provider</code> change only.</p>
+<h4 id="required-fields_1">Required fields</h4>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datastore</code></td>
+<td>vSphere datastore for the copy appliance template and VMs; allow roughly 10GB of storage per copy appliance VM.</td>
+</tr>
+<tr>
+<td><code>folder</code></td>
+<td>Dedicated vCenter inventory folder for the copy appliance resources, for example <code>/Datacenter/vm/toehold-test</code>.</td>
+</tr>
+<tr>
+<td><code>network</code></td>
+<td>Port group with DHCP that is reachable from the MTV migration network.</td>
+</tr>
+<tr>
+<td><code>resource_pool</code></td>
+<td>vSphere resource pool on which the copy appliance VMs run.</td>
+</tr>
+<tr>
+<td><code>base_disk_container_image</code></td>
+<td>OCI containerdisk image embedding the base qcow2 for the appliance, for example <code>registry.redhat.io/rhel9/rhel-guest-image:latest</code>.</td>
+</tr>
+</tbody>
+</table></div>
+<h4 id="optional-fields_1">Optional fields</h4>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>builder_image</code></td>
+<td>Override for the copy appliance template builder container image; defaults to the ForkliftController <code>copy_appliance_template_builder_image_fqin</code> setting.</td>
+</tr>
+<tr>
+<td><code>cpu</code> / <code>memory_mib</code></td>
+<td>OVF hardware overrides for the appliance template; default to the ForkliftController <code>copy_appliance_template_cpu</code> and <code>copy_appliance_template_memory_mib</code> settings.</td>
+</tr>
+</tbody>
+</table></div>
 <h2 id="rhv-ovirt">RHV / oVirt</h2>
 <p>The RHV source path uses <code>type: "ovirt"</code>.</p>
 <p><em>Example from <code>.providers.json.example</code>:</em></p>
@@ -1255,6 +1315,7 @@ affects vSphere, RHV, OpenStack, or Hyper-V.</p>
 <li><a href="#vsphere">vSphere</a><ul>
 <li><a href="#esxi-cloning-via-clone_provider">ESXi cloning via clone_provider</a></li>
 <li><a href="#vsphere-copy-offload">vSphere copy-offload</a></li>
+<li><a href="#vsphere-toehold">vSphere toehold</a></li>
 </ul>
 </li>
 <li><a href="#rhv-ovirt">RHV / oVirt</a></li>

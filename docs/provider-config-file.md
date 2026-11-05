@@ -65,6 +65,7 @@ Fail-fast behavior:
 | `clone_provider` | No | Name of a vCenter entry used for ESXi cloning. |
 | `luks_passphrase` | No | Provider-level LUKS passphrase, used when a VM has no per-VM override. |
 | `copyoffload` | No | Nested copy-offload block. See [vSphere copy-offload](#vsphere-copy-offload). |
+| `toehold` | No | Nested toehold (copy appliance) block. See [vSphere toehold](#vsphere-toehold). |
 | `guest_vm_linux_user` / `guest_vm_linux_password` | No | Linux guest SSH credentials. |
 | `guest_vm_win_user` / `guest_vm_win_password` | No | Windows guest WinRM credentials. |
 
@@ -335,6 +336,31 @@ a `ValueError` when this field is missing.
 > **Tip:** Every copy-offload credential can come from an environment variable instead of the file, and environment variables win. Names are built as
 > `COPYOFFLOAD_<FIELD_IN_UPPERCASE>`, so examples include `COPYOFFLOAD_STORAGE_HOSTNAME`, `COPYOFFLOAD_STORAGE_USERNAME`, `COPYOFFLOAD_STORAGE_PASSWORD`, `COPYOFFLOAD_ONTAP_SVM`,
 > `COPYOFFLOAD_ESXI_HOST`, `COPYOFFLOAD_ESXI_USER`, and `COPYOFFLOAD_ESXI_PASSWORD`. `storage_secret_extra` has its own JSON-object override, `COPYOFFLOAD_STORAGE_SECRET_EXTRA`.
+
+### vSphere toehold
+
+The `toehold` block is only meaningful for vSphere entries. It configures the toehold (copy appliance) transfer path, where MTV deploys a copy appliance VM inside vSphere and
+exposes the source disks through it over NBD instead of using VDDK (MTV 5.0, `feature_copy_appliance`). The toehold fixture validates the block before toehold tests run,
+creates a `CopyApplianceTemplate` for the provider, and patches the provider's `copyAppliance*` placement settings. The provider entry must not configure `vddk_init_image`.
+
+Keep a separate vSphere entry for toehold runs (like the example's `vsphere-toehold`) so switching between transfer paths is a `source_provider` change only.
+
+#### Required fields
+
+| Field | Notes |
+| --- | --- |
+| `datastore` | vSphere datastore for the copy appliance template and VMs; allow roughly 10GB of storage per copy appliance VM. |
+| `folder` | Dedicated vCenter inventory folder for the copy appliance resources, for example `/Datacenter/vm/toehold-test`. |
+| `network` | Port group with DHCP that is reachable from the MTV migration network. |
+| `resource_pool` | vSphere resource pool on which the copy appliance VMs run. |
+| `base_disk_container_image` | OCI containerdisk image embedding the base qcow2 for the appliance, for example `registry.redhat.io/rhel9/rhel-guest-image:latest`. |
+
+#### Optional fields
+
+| Field | Notes |
+| --- | --- |
+| `builder_image` | Override for the copy appliance template builder container image; defaults to the ForkliftController `copy_appliance_template_builder_image_fqin` setting. |
+| `cpu` / `memory_mib` | OVF hardware overrides for the appliance template; default to the ForkliftController `copy_appliance_template_cpu` and `copy_appliance_template_memory_mib` settings. |
 
 ## RHV / oVirt
 

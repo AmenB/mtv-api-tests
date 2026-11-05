@@ -44,6 +44,7 @@ markers =
     copyoffload_sanity: Copy-offload sanity tests - core scenarios for quick validation
     copyoffload_snapshots: Copy-offload snapshot tests (vSphere only)
     shared_disk: Shared disk migration tests (vSphere only)
+    toehold: Toehold copy appliance migration tests (vSphere only)
     incremental: marks tests as incremental (xfail on previous failure)
     min_mtv_version: mark test to require minimum MTV version (e.g., @pytest.mark.min_mtv_version("2.6.0"))
     ova: OVA provider-specific tests
@@ -116,6 +117,7 @@ for item in items:
 | `copyoffload_sanity` | Copy-offload sanity tests - core scenarios for quick validation | Scenario |
 | `copyoffload_snapshots` | Copy-offload snapshot tests (vSphere only) | Scenario |
 | `shared_disk` | Shared disk migration tests (vSphere only) | Scenario |
+| `toehold` | Toehold copy appliance migration tests (vSphere only) | Scenario |
 | `incremental` | Marks tests as incremental (xfail on previous failure) | Lifecycle |
 | `min_mtv_version` | Mark test to require minimum MTV version (e.g., `@pytest.mark.min_mtv_version("2.6.0")`) | Lifecycle |
 | `ova` | OVA provider-specific tests | Provider |
@@ -139,6 +141,7 @@ Tier markers:
 - `tier0`:
   `cold/test_cold_migration_comprehensive.py`, `cold/test_mtv_cold_migration.py`, `cold/test_ova_cold_migration.py`,
   `hooks/test_post_hook_retain_failed_vm.py`, `shared_disk/test_shared_disk_rhel_migration.py`,
+  `toehold/test_toehold_migration.py`,
   `warm/test_mtv_warm_clusterrole_migration.py`, `warm/test_mtv_warm_migration.py`,
   `warm/test_warm_migration_comprehensive.py`
 - `tier1`:
@@ -160,6 +163,8 @@ Scenario markers:
   `copyoffload/test_copyoffload_migration.py` only
 - `shared_disk`:
   `shared_disk/test_shared_disk_rhel_migration.py`, `shared_disk/test_shared_disk_windows_migration.py`
+- `toehold`:
+  `toehold/test_toehold_migration.py` only
 
 Lifecycle markers:
 

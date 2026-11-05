@@ -37,6 +37,51 @@
         }
       }
     },
+    "toeholdConfig": {
+    "type": "object",
+    "description": "Toehold (Copy Appliance) configuration for migrating disks through an appliance VM deployed in vSphere (MTV 5.0).",
+    "required": [
+      "datastore",
+      "folder",
+      "network",
+      "resource_pool",
+      "base_disk_container_image"
+    ],
+    "properties": {
+      "datastore": {
+        "type": "string",
+        "description": "vSphere datastore for the copy appliance template and VMs (allow ~10GB per copy appliance VM)."
+      },
+      "folder": {
+        "type": "string",
+        "description": "vCenter inventory folder for the copy appliance resources (e.g. '/Datacenter/vm/toehold')."
+      },
+      "network": {
+        "type": "string",
+        "description": "Port group with DHCP, reachable from the MTV migration network."
+      },
+      "resource_pool": {
+        "type": "string",
+        "description": "vSphere resource pool on which the copy appliance VMs run."
+      },
+      "base_disk_container_image": {
+        "type": "string",
+        "description": "OCI containerdisk image embedding the base qcow2 for the appliance (e.g. 'registry.redhat.io/rhel9/rhel-guest-image:latest')."
+      },
+      "builder_image": {
+        "type": "string",
+        "description": "Override for the copy appliance template builder container image (defaults to the controller setting)."
+      },
+      "cpu": {
+        "type": "integer",
+        "description": "OVF CPU count for the appliance template (defaults to the controller setting)."
+      },
+      "memory_mib": {
+        "type": "integer",
+        "description": "OVF memory in MiB for the appliance template (defaults to the controller setting)."
+      }
+    }
+  },
     "copyoffloadConfig": {
       "type": "object",
       "description": "Copy-offload (XCOPY) configuration for hardware-accelerated migration via storage array APIs.",
@@ -236,7 +281,7 @@
       "description": "A source provider configuration defining connection, authentication, and provider-specific settings.",
       "oneOf": [
         {
-          "description": "vSphere provider: supports vCenter and direct ESXi connections with optional VDDK, copy-offload, and LUKS support.",
+          "description": "vSphere provider: supports vCenter and direct ESXi connections with optional VDDK, copy-offload, toehold, and LUKS support.",
           "allOf": [
             { "$ref": "#/$defs/guestCredentials" },
             {
@@ -287,6 +332,9 @@
                 },
                 "copyoffload": {
                   "$ref": "#/$defs/copyoffloadConfig"
+                },
+                "toehold": {
+                  "$ref": "#/$defs/toeholdConfig"
                 }
               }
             }

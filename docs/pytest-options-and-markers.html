@@ -356,6 +356,7 @@ how to write JUnit XML, and how to behave when you enable xdist.</p>
 <span class="w">    </span><span class="na">copyoffload_sanity</span><span class="o">:</span><span class="w"> </span><span class="s">Copy-offload sanity tests - core scenarios for quick validation</span>
 <span class="w">    </span><span class="na">copyoffload_snapshots</span><span class="o">:</span><span class="w"> </span><span class="s">Copy-offload snapshot tests (vSphere only)</span>
 <span class="w">    </span><span class="na">shared_disk</span><span class="o">:</span><span class="w"> </span><span class="s">Shared disk migration tests (vSphere only)</span>
+<span class="w">    </span><span class="na">toehold</span><span class="o">:</span><span class="w"> </span><span class="s">Toehold copy appliance migration tests (vSphere only)</span>
 <span class="w">    </span><span class="na">incremental</span><span class="o">:</span><span class="w"> </span><span class="s">marks tests as incremental (xfail on previous failure)</span>
 <span class="w">    </span><span class="na">min_mtv_version</span><span class="o">:</span><span class="w"> </span><span class="s">mark test to require minimum MTV version (e.g., @pytest.mark.min_mtv_version("2.6.0"))</span>
 <span class="w">    </span><span class="na">ova</span><span class="o">:</span><span class="w"> </span><span class="s">OVA provider-specific tests</span>
@@ -465,6 +466,11 @@ ids because pytest matches against parent node names as well.</p>
 <td>Scenario</td>
 </tr>
 <tr>
+<td><code>toehold</code></td>
+<td>Toehold copy appliance migration tests (vSphere only)</td>
+<td>Scenario</td>
+</tr>
+<tr>
 <td><code>incremental</code></td>
 <td>Marks tests as incremental (xfail on previous failure)</td>
 <td>Lifecycle</td>
@@ -539,6 +545,7 @@ ids because pytest matches against parent node names as well.</p>
 <p><code>tier0</code>:
   <code>cold/test_cold_migration_comprehensive.py</code>, <code>cold/test_mtv_cold_migration.py</code>, <code>cold/test_ova_cold_migration.py</code>,
   <code>hooks/test_post_hook_retain_failed_vm.py</code>, <code>shared_disk/test_shared_disk_rhel_migration.py</code>,
+  <code>toehold/test_toehold_migration.py</code>,
   <code>warm/test_mtv_warm_clusterrole_migration.py</code>, <code>warm/test_mtv_warm_migration.py</code>,
   <code>warm/test_warm_migration_comprehensive.py</code></p>
 </li>
@@ -570,6 +577,10 @@ ids because pytest matches against parent node names as well.</p>
 <li>
 <p><code>shared_disk</code>:
   <code>shared_disk/test_shared_disk_rhel_migration.py</code>, <code>shared_disk/test_shared_disk_windows_migration.py</code></p>
+</li>
+<li>
+<p><code>toehold</code>:
+  <code>toehold/test_toehold_migration.py</code> only</p>
 </li>
 </ul>
 <p>Lifecycle markers:</p>

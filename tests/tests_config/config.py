@@ -119,6 +119,12 @@ tests_params: dict = {
         "warm_migration": False,
         "per_nic_network_map": True,
     },
+    "test_toehold_cold_migration": {
+        "virtual_machines": [
+            {"name": "mtv-tests-rhel8", "guest_agent": True},
+        ],
+        "warm_migration": False,
+    },
     "test_cold_migration_skip_guest_conversion": {
         "virtual_machines": [
             {
