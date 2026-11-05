@@ -255,6 +255,20 @@
                 </ul>
             </div>
 
+            <div class="nav-group">
+                <h3 class="nav-group-title">More</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="SHARED_DISK_MIGRATION.html"
+                           class="nav-link">
+                            Shared Disk Migration (MTV-4548)
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
         </nav>
     </aside>
 
@@ -605,7 +619,7 @@ Every artifact is written with the resolved <code>CLUSTER_PASSWORD</code> redact
 <tr>
 <td><code>storage</code></td>
 <td>A migration wait times out, or a migrated VM is confirmed unschedulable</td>
-<td>the target namespace's PVCs, DataVolumes and PersistentVolumes plus the full body of the non-Bound PVCs only, namespace events oldest first, storage classes, <code>openshift-storage</code> pods, and the current plus previous logs of the ceph-csi <code>csi-provisioner</code> and <code>csi-rbdplugin</code> containers (3000-line tails on the controller plugin, 500 on the per-node plugin), selected by the sidecar a pod runs rather than by its name — ODF names those pods <code>openshift-storage.rbd.csi.ceph.com-ctrlplugin-*</code> while upstream uses <code>csi-rbdplugin-provisioner-*</code></td>
+<td>the target namespace's PVC and DataVolume listings, the full body of at most 20 non-Bound PVCs (the listing names every claim with its phase), the namespace's events of the last 24 hours oldest first, the body of the storage class under test (the <code>--tc=storage_class</code> value the PVC canary also binds on), the PersistentVolumes the bound claims of that class point at, and the <code>VolumeAttachment</code> of each of those volumes with driver, node, <code>attached</code>, <code>attachError</code> and <code>detachError</code>. Container logs are collected for two pod selections — every pod whose <code>spec.volumes</code> references one of those claims, and the storage driver's pods — as current logs plus, for containers that have restarted at least once, their previous logs. The driver is named by the cluster, never hardcoded: the class's <code>provisioner</code> while its claim is Pending (no volume, so no attachment to read), the attachment's <code>attacher</code> once it binds. A <code>kubernetes.io/no-provisioner</code> class names no driver of its own, so it contributes nothing to the selection: a claim on such a class still gets driver pods when its bound volume has an attachment that names a driver, and the one-line notice appears only when no attachment supplies a name either. Driver pods are collected only when the namespace holds a claim of that class</td>
 </tr>
 </tbody>
 </table></div>

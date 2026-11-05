@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Disk Migration (MTV-4548) - mtv-api-tests</title>
+    <meta name="description" content="Pytest-based integration suite for validating Migration Toolkit for Virtualization migrations into OpenShift Virtualization.">
+    <link rel="stylesheet" href="assets/style.css?v=66bf87bdd9">
+    <script>try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}</script>
+    <link rel="alternate" type="text/plain" title="LLM Documentation Index" href="llms.txt">
+    <link rel="alternate" type="text/plain" title="LLM Full Documentation" href="llms-full.txt">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="index.html" class="sidebar-logo">mtv-api-tests</a>
+            <p class="sidebar-tagline">Pytest-based integration suite for validating Migration Toolkit for Virtualization migrations into OpenShift Virtualization.</p>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="text" id="search-input" placeholder="Search... (⌘K)" autocomplete="off" readonly>
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <nav class="sidebar-nav">
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Overview</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="introduction.html"
+                           class="nav-link">
+                            Introduction
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="project-structure.html"
+                           class="nav-link">
+                            Project Structure
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="architecture-and-workflow.html"
+                           class="nav-link">
+                            Architecture And Workflow
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="supported-providers-and-scenarios.html"
+                           class="nav-link">
+                            Supported Providers And Scenarios
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Getting Started</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="prerequisites.html"
+                           class="nav-link">
+                            Prerequisites
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="installation-and-local-setup.html"
+                           class="nav-link">
+                            Installation And Local Setup
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="quickstart-first-run.html"
+                           class="nav-link">
+                            Quickstart First Run
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="container-and-openshift-job-execution.html"
+                           class="nav-link">
+                            Container And OpenShift Job Execution
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Configuration</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="runtime-configuration.html"
+                           class="nav-link">
+                            Runtime Configuration
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="provider-config-file.html"
+                           class="nav-link">
+                            Provider Config File
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="test-plan-configuration.html"
+                           class="nav-link">
+                            Test Plan Configuration
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="optional-integrations-and-secrets.html"
+                           class="nav-link">
+                            Optional Integrations And Secrets
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Guides</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="cold-migrations.html"
+                           class="nav-link">
+                            Cold Migrations
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="warm-migrations.html"
+                           class="nav-link">
+                            Warm Migrations
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="copy-offload-migrations.html"
+                           class="nav-link">
+                            Copy-Offload Migrations
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="remote-openshift-migrations.html"
+                           class="nav-link">
+                            Remote OpenShift Migrations
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="hooks-and-expected-failures.html"
+                           class="nav-link">
+                            Hooks And Expected Failures
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="advanced-plan-features.html"
+                           class="nav-link">
+                            Advanced Plan Features
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Reference</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="pytest-options-and-markers.html"
+                           class="nav-link">
+                            Pytest Options And Markers
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="plan-and-resource-reference.html"
+                           class="nav-link">
+                            Plan And Resource Reference
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="provider-and-inventory-reference.html"
+                           class="nav-link">
+                            Provider And Inventory Reference
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="python-module-reference.html"
+                           class="nav-link">
+                            Python Module Reference
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="troubleshooting-and-diagnostics.html"
+                           class="nav-link">
+                            Troubleshooting And Diagnostics
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">Maintenance</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="cleanup-and-teardown.html"
+                           class="nav-link">
+                            Cleanup And Teardown
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="extending-the-suite.html"
+                           class="nav-link">
+                            Extending The Suite
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="development-workflow.html"
+                           class="nav-link">
+                            Development Workflow
+                        </a>
+                    </li>
+
+                    <li>
+                        <a href="automation-and-release.html"
+                           class="nav-link">
+                            Automation And Release
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+            <div class="nav-group">
+                <h3 class="nav-group-title">More</h3>
+                <ul class="nav-group-pages">
+
+                    <li>
+                        <a href="SHARED_DISK_MIGRATION.html"
+                           class="nav-link active" aria-current="page">
+                            Shared Disk Migration (MTV-4548)
+                        </a>
+                    </li>
+
+                </ul>
+            </div>
+
+        </nav>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <a href="index.html" class="top-bar-title">mtv-api-tests</a>
+            </div>
+            <div class="top-bar-spacer"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-search-btn" id="search-trigger" aria-label="Search">
+                    <kbd>&#8984;K</kbd> Search
+                </button>
+                <a href="https://github.com/RedHatQE/mtv-api-tests" target="_blank" rel="noopener" class="docsite-badge" title="documentation">
+                    ⚡ pi<span class="brand-accent">-docsite</span>
+                </a>
+
+                <a href="https://github.com/RedHatQE/mtv-api-tests" target="_blank" rel="noopener noreferrer" class="top-bar-github" id="github-link" data-repo-url="https://github.com/RedHatQE/mtv-api-tests">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    <span class="github-stars" id="github-stars" title="GitHub stars"></span>
+                </a>
+
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                    <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+
+            <article class="article">
+                <div class="article-body">
+                    <!-- SECURITY: |safe is intentional. Content is AI-generated markdown
+                         converted to HTML server-side by the markdown library, not
+                         user-supplied input. XSS risk is minimal and accepted since
+                         the AI generates the content, not end users. -->
+                    <h1 id="shared-disk-migration-mtv-4548">Shared Disk Migration (MTV-4548)</h1>
+<p><strong>Location</strong>: <code>docs/SHARED_DISK_MIGRATION.md</code></p>
+<p>This document explains the shared disk migration feature implementation, including code workflow, design decisions, and usage.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#feature-background">Feature Background</a></li>
+<li><a href="#code-architecture">Code Architecture</a></li>
+<li><a href="#test-workflow">Test Workflow</a></li>
+<li><a href="#code-details">Code Details</a></li>
+<li><a href="#infrastructure-fixes">Infrastructure Fixes</a></li>
+<li><a href="#running-the-tests">Running the Tests</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+</ol>
+<h2 id="overview">Overview</h2>
+<p>MTV-4548 implements cold migration of RHEL VMs with shared disks from VMware to OpenShift Virtualization. The feature allows multiple VMs sharing the same disk to be migrated while maintaining the shared disk relationship.</p>
+<p><strong>Key Concept</strong>:</p>
+<ul>
+<li><strong>Owner VM</strong> migrates the shared disk (creates new PVC)</li>
+<li><strong>Consumer VM</strong> reuses the owner's shared disk PVC (does not migrate that disk)</li>
+</ul>
+<h2 id="feature-background">Feature Background</h2>
+<h3 id="vmware-shared-disks">VMware Shared Disks</h3>
+<p>In VMware, multiple VMs can share the same VMDK disk file:</p>
+<ul>
+<li>One VM is the "owner" - has read/write access</li>
+<li>Other VMs are "consumers" - share the same disk</li>
+<li>Used for shared storage, clustering, or data sharing between VMs</li>
+</ul>
+<h3 id="openshift-shared-disks">OpenShift Shared Disks</h3>
+<p>In OpenShift Virtualization:</p>
+<ul>
+<li>Shared disk = same PVC mounted by multiple VMs</li>
+<li>Uses <code>ReadWriteMany</code> (RWX) access mode</li>
+<li>Storage must support RWX (NFS, CephFS, etc.)</li>
+</ul>
+<h3 id="migration-challenge">Migration Challenge</h3>
+<p>Migrating shared disk VMs requires:</p>
+<ol>
+<li>Migrate owner VM first - creates shared PVC</li>
+<li>Migrate consumer VMs - reference owner's PVC instead of creating new ones</li>
+<li>Verify all VMs can access the shared disk</li>
+</ol>
+<h3 id="known-limitation-mtv-2200">Known Limitation (MTV-2200)</h3>
+<p>virt-v2v cannot update <code>/etc/fstab</code> for shared disks. This means:</p>
+<ul>
+<li>Shared disk must be <strong>unmounted</strong> in source VMs before migration</li>
+<li>If mounted, migration succeeds but VM fails to boot (fstab entry causes boot failure)</li>
+<li>After migration, users must manually mount the shared disk</li>
+</ul>
+<h2 id="code-architecture">Code Architecture</h2>
+<div class="highlight"><pre><span></span><code>tests/shared_disk/test_shared_disk_rhel_migration.py          # Main test class (6 test methods)
+├─&gt; tests/tests_config/config.py             # Test configuration
+├─&gt; utilities/shared_disk.py                 # Shared disk utilities
+│   ├─&gt; verify_shared_disk_data()            # Verify disk accessibility
+│   └─&gt; verify_pvc_count_for_vm()            # Verify PVC reuse
+├─&gt; utilities/mtv_migration.py               # Standard migration utilities
+├─&gt; utilities/post_migration.py              # Standard validation
+└─&gt; utilities/ssh_utils.py                   # SSH connection management (FIXED)
+</code></pre></div>
+
+<h3 id="file-responsibilities">File Responsibilities</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test_shared_disk_rhel_migration.py</code></td>
+<td>6-step test orchestration (2 VMs migrated in one plan, PVC verified, data verified)</td>
+</tr>
+<tr>
+<td><code>utilities/shared_disk.py</code></td>
+<td>Shared disk specific validation logic</td>
+</tr>
+<tr>
+<td><code>tests_config/config.py</code></td>
+<td>VM names and test parameters</td>
+</tr>
+<tr>
+<td><code>utilities/ssh_utils.py</code></td>
+<td>SSH infrastructure (CRITICAL FIX for reconnections)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="test-workflow">Test Workflow</h2>
+<h3 id="high-level-flow">High-Level Flow</h3>
+<div class="highlight"><pre><span></span><code>1. test_create_storagemap_vm1     → Create storage mapping for VM1
+2. test_create_networkmap_vm1     → Create network mapping for VM1
+3. test_create_plan_vm1           → Create migration plan for VM1 (owner)
+4. test_migrate_vm1               → Migrate VM1 (creates shared PVC)
+                                    ↓
+5. test_create_storagemap_vm2     → Create storage mapping for VM2
+6. test_create_networkmap_vm2     → Create network mapping for VM2
+7. test_create_plan_vm2           → Create migration plan for VM2 (consumer)
+8. test_migrate_vm2               → Migrate VM2 (reuses VM1's shared PVC)
+                                    ↓
+9. test_verify_pvc_count          → Verify VM2 plan created fewer PVCs
+10. test_verify_shared_disk_data  → Verify both VMs can read/write shared disk
+11. test_check_vms                → Standard post-migration validation
+</code></pre></div>
+
+<h3 id="detailed-step-by-step">Detailed Step-by-Step</h3>
+<h4 id="steps-1-4-migrate-owner-vm-vm1">Steps 1-4: Migrate Owner VM (VM1)</h4>
+<p><strong>Step 1: test_create_storagemap_vm1</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Creates StorageMap for VM1</span>
+<span class="c1"># Maps source VMware datastore → target OpenShift storage class</span>
+<span class="n">storage_map_vm1</span> <span class="o">=</span> <span class="n">get_storage_migration_map</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm1</span><span class="p">,</span>
+    <span class="n">source_provider</span><span class="o">=</span><span class="n">source_provider</span><span class="p">,</span>
+    <span class="n">target_namespace</span><span class="o">=</span><span class="n">target_namespace</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 2: test_create_networkmap_vm1</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Creates NetworkMap for VM1</span>
+<span class="c1"># Maps source VMware network → target OpenShift network (pod or multus)</span>
+<span class="n">network_map_vm1</span> <span class="o">=</span> <span class="n">get_network_migration_map</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm1</span><span class="p">,</span>
+    <span class="n">source_provider</span><span class="o">=</span><span class="n">source_provider</span><span class="p">,</span>
+    <span class="n">target_namespace</span><span class="o">=</span><span class="n">target_namespace</span><span class="p">,</span>
+    <span class="n">multus_network_name</span><span class="o">=</span><span class="n">multus_network_name</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 3: test_create_plan_vm1</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Creates Plan CR with migrateSharedDisks: true</span>
+<span class="c1"># This tells MTV to migrate the shared disk (create new PVC)</span>
+<span class="n">plan_vm1</span> <span class="o">=</span> <span class="n">create_plan_resource</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm1</span><span class="p">,</span>
+    <span class="n">storage_map</span><span class="o">=</span><span class="n">storage_map_vm1</span><span class="p">,</span>
+    <span class="n">network_map</span><span class="o">=</span><span class="n">network_map_vm1</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+<span class="c1"># Plan includes: vms[0].migrateSharedDisks = true</span>
+</code></pre></div>
+
+<p><strong>Step 4: test_migrate_vm1</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Execute migration for VM1</span>
+<span class="c1"># MTV creates:</span>
+<span class="c1"># - PVC for OS disk</span>
+<span class="c1"># - PVC for shared disk (RWX mode)</span>
+<span class="c1"># - VirtualMachine CR</span>
+<span class="n">execute_migration</span><span class="p">(</span><span class="n">plan</span><span class="o">=</span><span class="n">plan_vm1</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Result</strong>: VM1 migrated with shared disk PVC created.</p>
+<hr>
+<h4 id="steps-5-8-migrate-consumer-vm-vm2">Steps 5-8: Migrate Consumer VM (VM2)</h4>
+<p><strong>Step 5: test_create_storagemap_vm2</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Same as VM1, creates StorageMap for VM2</span>
+<span class="n">storage_map_vm2</span> <span class="o">=</span> <span class="n">get_storage_migration_map</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm2</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 6: test_create_networkmap_vm2</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Same as VM1, creates NetworkMap for VM2</span>
+<span class="n">network_map_vm2</span> <span class="o">=</span> <span class="n">get_network_migration_map</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm2</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 7: test_create_plan_vm2</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Creates Plan CR with migrateSharedDisks: false</span>
+<span class="c1"># This tells MTV to reuse existing shared disk PVC from VM1</span>
+<span class="n">plan_vm2</span> <span class="o">=</span> <span class="n">create_plan_resource</span><span class="p">(</span>
+    <span class="n">prepared_plan</span><span class="o">=</span><span class="n">prepared_plan_vm2</span><span class="p">,</span>
+    <span class="n">storage_map</span><span class="o">=</span><span class="n">storage_map_vm2</span><span class="p">,</span>
+    <span class="n">network_map</span><span class="o">=</span><span class="n">network_map_vm2</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+<span class="c1"># Plan includes: vms[0].migrateSharedDisks = false</span>
+</code></pre></div>
+
+<p><strong>Step 8: test_migrate_vm2</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Execute migration for VM2</span>
+<span class="c1"># MTV creates:</span>
+<span class="c1"># - PVC for OS disk</span>
+<span class="c1"># - NO PVC for shared disk (reuses VM1's shared disk PVC)</span>
+<span class="c1"># - VirtualMachine CR with reference to VM1's shared PVC</span>
+<span class="n">execute_migration</span><span class="p">(</span><span class="n">plan</span><span class="o">=</span><span class="n">plan_vm2</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Result</strong>: VM2 migrated, reusing VM1's shared disk PVC.</p>
+<hr>
+<h4 id="steps-9-11-validation">Steps 9-11: Validation</h4>
+<p><strong>Step 9: test_verify_pvc_count</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Verify VM2 created fewer PVCs than VM1</span>
+<span class="c1"># VM1 has: OS disk PVC + shared disk PVC = 2 PVCs</span>
+<span class="c1"># VM2 has: OS disk PVC only = 1 PVC (reuses shared disk)</span>
+
+<span class="n">verify_pvc_count_for_vm</span><span class="p">(</span>
+    <span class="n">ocp_admin_client</span><span class="o">=</span><span class="n">ocp_admin_client</span><span class="p">,</span>
+    <span class="n">target_namespace</span><span class="o">=</span><span class="n">target_namespace</span><span class="p">,</span>
+    <span class="n">plan_name</span><span class="o">=</span><span class="n">plan_vm2</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+    <span class="n">expected_pvc_count</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>  <span class="c1"># OS disk + data disk (not shared)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p><strong>Step 10: test_verify_shared_disk_data</strong></p>
+<p>This is the <strong>critical validation</strong> that proves shared disk works:</p>
+<div class="highlight"><pre><span></span><code><span class="n">verify_shared_disk_data</span><span class="p">(</span>
+    <span class="n">vm1_name</span><span class="o">=</span><span class="s2">"vm1"</span><span class="p">,</span>
+    <span class="n">vm2_name</span><span class="o">=</span><span class="s2">"vm2"</span><span class="p">,</span>
+    <span class="n">vm_ssh_connections</span><span class="o">=</span><span class="n">vm_ssh_connections</span><span class="p">,</span>
+    <span class="n">source_provider_data</span><span class="o">=</span><span class="n">source_provider_data</span><span class="p">,</span>
+    <span class="n">vm1_info</span><span class="o">=</span><span class="n">prepared_plan_vm1</span><span class="p">[</span><span class="s2">"source_vms_data"</span><span class="p">][</span><span class="s2">"vm1"</span><span class="p">],</span>
+    <span class="n">vm2_info</span><span class="o">=</span><span class="n">prepared_plan_vm2</span><span class="p">[</span><span class="s2">"source_vms_data"</span><span class="p">][</span><span class="s2">"vm2"</span><span class="p">],</span>
+    <span class="n">shared_disk_device</span><span class="o">=</span><span class="s2">"/dev/vdc"</span><span class="p">,</span>  <span class="c1"># Shared disk device path</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<p>Inside <code>verify_shared_disk_data()</code>:</p>
+<div class="highlight"><pre><span></span><code>1. SSH to VM1
+   ├─&gt; Mount shared disk (/dev/vdc1 → /mnt/shared_disk)
+   ├─&gt; Write test file: echo "Data from VM1" &gt; /mnt/shared_disk/test-vm1.txt
+   └─&gt; Unmount (exit SSH session)
+
+2. SSH to VM2
+   ├─&gt; Mount shared disk (/dev/vdc1 → /mnt/shared_disk)
+   ├─&gt; Read VM1's file: cat /mnt/shared_disk/test-vm1.txt
+   ├─&gt; Verify contains "Data from VM1" ✓
+   ├─&gt; Write test file: echo "Data from VM2" &gt; /mnt/shared_disk/test-vm2.txt
+   └─&gt; Unmount (exit SSH session)
+
+3. SSH to VM1 again
+   ├─&gt; Unmount stale mount (CRITICAL FIX - see below)
+   ├─&gt; Remount fresh (/dev/vdc1 → /mnt/shared_disk)
+   ├─&gt; Read VM2's file: cat /mnt/shared_disk/test-vm2.txt
+   ├─&gt; Verify contains "Data from VM2" ✓
+   └─&gt; Unmount and cleanup
+
+Result: Bidirectional shared disk access confirmed ✓
+</code></pre></div>
+
+<p><strong>Step 11: test_check_vms</strong></p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Standard post-migration validation</span>
+<span class="c1"># - VMs exist and running</span>
+<span class="c1"># - SSH connectivity works</span>
+<span class="c1"># - Network configured correctly</span>
+<span class="c1"># - Storage attached correctly</span>
+<span class="n">check_vms</span><span class="p">(</span><span class="n">plan</span><span class="o">=</span><span class="n">prepared_plan_vm2</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+
+<h2 id="code-details">Code Details</h2>
+<h3 id="1-test-configuration-teststests_configconfigpy">1. Test Configuration (tests/tests_config/config.py)</h3>
+<div class="highlight"><pre><span></span><code><span class="s2">"test_shared_disk_rhel_migration"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"virtual_machines"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"mtv-feature-shared-rhel1"</span><span class="p">,</span>  <span class="c1"># Owner VM</span>
+            <span class="s2">"source_vm_power"</span><span class="p">:</span> <span class="s2">"off"</span><span class="p">,</span>            <span class="c1"># Shut down before migration</span>
+            <span class="s2">"guest_agent"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>                 <span class="c1"># VMware tools installed</span>
+            <span class="s2">"migrate_shared_disks"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>        <span class="c1"># ← Migrate shared disk</span>
+            <span class="s2">"target_power_state"</span><span class="p">:</span> <span class="s2">"on"</span><span class="p">,</span>          <span class="c1"># Start after migration</span>
+        <span class="p">},</span>
+        <span class="p">{</span>
+            <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"mtv-feature-shared-rhel2"</span><span class="p">,</span>  <span class="c1"># Consumer VM</span>
+            <span class="s2">"source_vm_power"</span><span class="p">:</span> <span class="s2">"off"</span><span class="p">,</span>
+            <span class="s2">"guest_agent"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">"migrate_shared_disks"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>       <span class="c1"># ← Reuse shared disk</span>
+            <span class="s2">"target_power_state"</span><span class="p">:</span> <span class="s2">"on"</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">],</span>
+    <span class="s2">"warm_migration"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>                     <span class="c1"># Cold migration only</span>
+    <span class="s2">"shared_disk_device"</span><span class="p">:</span> <span class="s2">"/dev/vdc"</span><span class="p">,</span>            <span class="c1"># Shared disk device path</span>
+    <span class="s2">"expected_pvc_count_vm2"</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>                 <span class="c1"># VM2: OS + data (not shared)</span>
+    <span class="s2">"target_power_state"</span><span class="p">:</span> <span class="s2">"on"</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="2-shared-disk-utilities-utilitiesshared_diskpy">2. Shared Disk Utilities (utilities/shared_disk.py)</h3>
+<h4 id="function-verify_shared_disk_data">Function: verify_shared_disk_data()</h4>
+<p><strong>Purpose</strong>: Verify bidirectional shared disk access between two VMs.</p>
+<p><strong>Parameters</strong>:</p>
+<ul>
+<li><code>vm1_name</code>, <code>vm2_name</code>: VM names in OpenShift</li>
+<li><code>vm_ssh_connections</code>: SSHConnectionManager instance</li>
+<li><code>source_provider_data</code>: Provider config (for SSH credentials)</li>
+<li><code>vm1_info</code>, <code>vm2_info</code>: VM information (OS type, etc.)</li>
+<li><code>shared_disk_device</code>: Device path (default: <code>/dev/vdc</code>)</li>
+</ul>
+<p><strong>Algorithm</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="mf">1.</span> <span class="n">Get</span> <span class="n">SSH</span> <span class="n">credentials</span> <span class="kn">from</span><span class="w"> </span><span class="nn">provider</span> <span class="n">config</span> <span class="p">(</span><span class="n">based</span> <span class="n">on</span> <span class="n">OS</span> <span class="nb">type</span><span class="p">)</span>
+   <span class="n">vm1_user</span><span class="p">,</span> <span class="n">vm1_pass</span> <span class="o">=</span> <span class="n">get_ssh_credentials_from_provider_config</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+   <span class="n">vm2_user</span><span class="p">,</span> <span class="n">vm2_pass</span> <span class="o">=</span> <span class="n">get_ssh_credentials_from_provider_config</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+
+<span class="mf">2.</span> <span class="n">Create</span> <span class="n">SSH</span> <span class="n">connections</span> <span class="p">(</span><span class="n">via</span> <span class="n">virtctl</span> <span class="n">port</span><span class="o">-</span><span class="n">forward</span><span class="p">)</span>
+   <span class="n">ssh_vm1</span> <span class="o">=</span> <span class="n">vm_ssh_connections</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">vm_name</span><span class="o">=</span><span class="n">vm1_name</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+   <span class="n">ssh_vm2</span> <span class="o">=</span> <span class="n">vm_ssh_connections</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">vm_name</span><span class="o">=</span><span class="n">vm2_name</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+
+<span class="mf">3.</span> <span class="n">VM1</span><span class="p">:</span> <span class="n">Mount</span> <span class="ow">and</span> <span class="n">write</span>
+   <span class="n">partition</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">shared_disk_device</span><span class="si">}</span><span class="s2">1"</span>  <span class="c1"># /dev/vdc1</span>
+   <span class="n">mount_point</span> <span class="o">=</span> <span class="s2">"/mnt/shared_disk"</span>
+
+   <span class="k">with</span> <span class="n">ssh_vm1</span><span class="p">:</span>
+       <span class="n">sudo</span> <span class="n">mkdir</span> <span class="o">-</span><span class="n">p</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+       <span class="n">sudo</span> <span class="n">mount</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="n">vdc1</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+       <span class="n">echo</span> <span class="s1">'Data from VM1'</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span><span class="o">/</span><span class="n">test</span><span class="o">-</span><span class="n">vm1</span><span class="o">.</span><span class="n">txt</span>
+       <span class="n">sudo</span> <span class="n">sync</span>
+
+<span class="mf">4.</span> <span class="n">VM2</span><span class="p">:</span> <span class="n">Mount</span><span class="p">,</span> <span class="n">read</span> <span class="n">VM1</span><span class="s1">'s data, write</span>
+   <span class="k">with</span> <span class="n">ssh_vm2</span><span class="p">:</span>
+       <span class="n">sudo</span> <span class="n">mkdir</span> <span class="o">-</span><span class="n">p</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+       <span class="n">sudo</span> <span class="n">mount</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="n">vdc1</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+
+       <span class="c1"># Read VM1's file</span>
+       <span class="n">data</span> <span class="o">=</span> <span class="n">sudo</span> <span class="n">cat</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span><span class="o">/</span><span class="n">test</span><span class="o">-</span><span class="n">vm1</span><span class="o">.</span><span class="n">txt</span>
+       <span class="k">assert</span> <span class="s2">"Data from VM1"</span> <span class="ow">in</span> <span class="n">data</span>  <span class="c1"># ✓ VM2 sees VM1's data</span>
+
+       <span class="c1"># Write VM2's data</span>
+       <span class="n">echo</span> <span class="s1">'Data from VM2'</span> <span class="o">|</span> <span class="n">sudo</span> <span class="n">tee</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span><span class="o">/</span><span class="n">test</span><span class="o">-</span><span class="n">vm2</span><span class="o">.</span><span class="n">txt</span>
+       <span class="n">sudo</span> <span class="n">sync</span>
+
+<span class="mf">5.</span> <span class="n">VM1</span><span class="p">:</span> <span class="n">Unmount</span> <span class="n">stale</span><span class="p">,</span> <span class="n">remount</span> <span class="n">fresh</span><span class="p">,</span> <span class="n">read</span> <span class="n">VM2</span><span class="s1">'s data</span>
+   <span class="k">with</span> <span class="n">ssh_vm1</span><span class="p">:</span>
+       <span class="c1"># CRITICAL: Unmount old mount to see fresh filesystem</span>
+       <span class="n">sudo</span> <span class="n">umount</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+       <span class="n">sudo</span> <span class="n">mount</span> <span class="o">/</span><span class="n">dev</span><span class="o">/</span><span class="n">vdc1</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+
+       <span class="c1"># Read VM2's file</span>
+       <span class="n">data</span> <span class="o">=</span> <span class="n">sudo</span> <span class="n">cat</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span><span class="o">/</span><span class="n">test</span><span class="o">-</span><span class="n">vm2</span><span class="o">.</span><span class="n">txt</span>
+       <span class="k">assert</span> <span class="s2">"Data from VM2"</span> <span class="ow">in</span> <span class="n">data</span>  <span class="c1"># ✓ VM1 sees VM2's data</span>
+
+       <span class="n">sudo</span> <span class="n">umount</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+
+<span class="mf">6.</span> <span class="n">Cleanup</span>
+   <span class="k">with</span> <span class="n">ssh_vm2</span><span class="p">:</span>
+       <span class="n">sudo</span> <span class="n">umount</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">shared_disk</span>
+</code></pre></div>
+
+<p><strong>Why unmount/remount in step 5?</strong></p>
+<p>When SSH reconnects to VM1, the mount from step 3 is still active but shows <strong>stale filesystem state</strong> (before VM2's write). Unmounting and remounting forces the kernel to read fresh data from disk.</p>
+<p><strong>Why use <code>tee</code> instead of shell redirect?</strong></p>
+<p>Shell redirect (<code>echo "data" &gt; file</code>) has quoting issues over SSH. Using <code>tee</code> is more reliable:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Unreliable (shell quoting issues)</span>
+sudo<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s2">"echo 'Data' &gt; /mnt/shared_disk/test.txt"</span>
+
+<span class="c1"># Reliable</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s1">'Data'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/mnt/shared_disk/test.txt<span class="w"> </span>&gt;<span class="w"> </span>/dev/null
+</code></pre></div>
+
+<h4 id="function-verify_pvc_count_for_vm">Function: verify_pvc_count_for_vm()</h4>
+<p><strong>Purpose</strong>: Verify PVC count matches expected (proves PVC reuse).</p>
+<p><strong>Parameters</strong>:</p>
+<ul>
+<li><code>ocp_admin_client</code>: OpenShift client</li>
+<li><code>target_namespace</code>: Where PVCs are created</li>
+<li><code>plan_name</code>: Plan name (used to filter PVCs)</li>
+<li><code>expected_pvc_count</code>: Expected number of PVCs</li>
+</ul>
+<p><strong>Algorithm</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="mf">1.</span> <span class="n">Get</span> <span class="nb">all</span> <span class="n">PVCs</span> <span class="ow">in</span> <span class="n">namespace</span>
+   <span class="n">all_pvcs</span> <span class="o">=</span> <span class="n">PersistentVolumeClaim</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+       <span class="n">dyn_client</span><span class="o">=</span><span class="n">ocp_admin_client</span><span class="p">,</span>
+       <span class="n">namespace</span><span class="o">=</span><span class="n">target_namespace</span>
+   <span class="p">)</span>
+
+<span class="mf">2.</span> <span class="n">Filter</span> <span class="n">PVCs</span> <span class="n">by</span> <span class="n">plan</span> <span class="n">name</span> <span class="p">(</span><span class="n">plan</span> <span class="n">name</span> <span class="ow">is</span> <span class="n">substring</span> <span class="n">of</span> <span class="n">PVC</span> <span class="n">name</span><span class="p">)</span>
+   <span class="n">plan_pvcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pvc</span> <span class="k">for</span> <span class="n">pvc</span> <span class="ow">in</span> <span class="n">all_pvcs</span> <span class="k">if</span> <span class="n">plan_name</span> <span class="ow">in</span> <span class="n">pvc</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+<span class="mf">3.</span> <span class="n">Count</span> <span class="ow">and</span> <span class="n">verify</span>
+   <span class="n">actual_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">plan_pvcs</span><span class="p">)</span>
+   <span class="k">assert</span> <span class="n">actual_count</span> <span class="o">==</span> <span class="n">expected_pvc_count</span>
+
+   <span class="c1"># For VM1 plan: expect 3 PVCs (OS + data + shared)</span>
+   <span class="c1"># For VM2 plan: expect 2 PVCs (OS + data, NO shared - reuses VM1's)</span>
+</code></pre></div>
+
+<h3 id="3-test-class-testsshared_disktest_shared_disk_rhel_migrationpy">3. Test Class (tests/shared_disk/test_shared_disk_rhel_migration.py)</h3>
+<p><strong>Class Structure</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">parametrize</span><span class="p">(</span><span class="s2">"class_plan_config"</span><span class="p">,</span> <span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">indirect</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">usefixtures</span><span class="p">(</span><span class="s2">"cleanup_migrated_vms"</span><span class="p">)</span>
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">incremental</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">TestSharedDiskRhelMigration</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Test shared disk migration (MTV-676)."""</span>
+
+    <span class="c1"># 6 test methods (see workflow above)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_create_storagemap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_create_networkmap</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_create_plan</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_migrate_vms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_verify_shared_disk_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_check_vms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span> <span class="o">...</span>
+</code></pre></div>
+
+<p><strong>Key Points</strong>:</p>
+<ul>
+<li><code>@pytest.mark.incremental</code>: If any test fails, remaining tests are skipped</li>
+<li><code>@pytest.mark.usefixtures("cleanup_migrated_vms")</code>: Auto-cleanup VMs after test class</li>
+<li>Stores resources on class (<code>self.__class__.storage_map_vm1</code>) for access across test methods</li>
+</ul>
+<h2 id="infrastructure-fixes">Infrastructure Fixes</h2>
+<h3 id="fix-1-ssh-executor-port-utilitiesssh_utilspy">Fix 1: SSH Executor Port (utilities/ssh_utils.py)</h3>
+<p><strong>Problem</strong>:
+When reconnecting to the same VM (as in shared disk test), new SSH executors defaulted to port 22 instead of using the port-forward port.</p>
+<p><strong>Root Cause</strong>:
+<code>rrmngmnt</code> library creates new executors that don't inherit the port-forward port.</p>
+<p><strong>Fix</strong> (line 250):</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">VMSSHConnection</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># ... existing code ...</span>
+
+        <span class="c1"># CRITICAL: Set port on the executor factory so ALL executors use the port-forward port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rrmngmnt_host</span><span class="o">.</span><span class="n">executor_factory</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_port</span>
+
+        <span class="c1"># ... rest of code ...</span>
+</code></pre></div>
+
+<p><strong>Impact</strong>: All SSH executors now use the correct port-forward port, enabling multiple reconnections to the same VM.</p>
+<h3 id="fix-2-virtctl-symlink-utilitiesvirtctlpy">Fix 2: virtctl Symlink (utilities/virtctl.py)</h3>
+<p><strong>Problem</strong>:
+Each pytest worker downloaded virtctl from the cluster, wasting time and bandwidth.</p>
+<p><strong>Fix</strong>:
+Create symlink from system-installed virtctl to pytest shared directory:</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_check_existing_virtctl</span><span class="p">(</span><span class="n">download_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># Check if already in download_dir</span>
+    <span class="n">virtctl_binary</span> <span class="o">=</span> <span class="n">download_dir</span> <span class="o">/</span> <span class="s2">"virtctl"</span>
+    <span class="k">if</span> <span class="n">virtctl_binary</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">virtctl_binary</span>
+
+    <span class="c1"># Check system PATH</span>
+    <span class="n">existing_virtctl</span> <span class="o">=</span> <span class="n">shutil</span><span class="o">.</span><span class="n">which</span><span class="p">(</span><span class="s2">"virtctl"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">existing_virtctl</span><span class="p">:</span>
+        <span class="c1"># Create symlink for pytest-xdist workers to share</span>
+        <span class="n">virtctl_binary</span><span class="o">.</span><span class="n">symlink_to</span><span class="p">(</span><span class="n">existing_virtctl</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">virtctl_binary</span>
+
+    <span class="k">return</span> <span class="kc">None</span>  <span class="c1"># Download from cluster</span>
+</code></pre></div>
+
+<p><strong>Impact</strong>: All pytest workers share the same virtctl binary, avoiding redundant downloads.</p>
+<h2 id="running-the-tests">Running the Tests</h2>
+<h3 id="prerequisites">Prerequisites</h3>
+<ol>
+<li><strong>Source VMs</strong> (in VMware):</li>
+<li>Two RHEL VMs with shared disk</li>
+<li>Shared disk must be <code>/dev/vdc</code> (or configure in config.py)</li>
+<li>VMware tools installed</li>
+<li>VMs powered off</li>
+<li>
+<p><strong>Shared disk unmounted</strong> (due to MTV-2200 limitation)</p>
+</li>
+<li>
+<p><strong>OpenShift Cluster</strong>:</p>
+</li>
+<li>MTV (Migration Toolkit for Virtualization) installed</li>
+<li>Storage class supporting RWX (ReadWriteMany)</li>
+<li>
+<p>Multus CNI (if using bridged networking)</p>
+</li>
+<li>
+<p><strong>Configuration</strong>:</p>
+</li>
+<li><code>.providers.json</code>: VMware credentials</li>
+<li><code>tests_config/config.py</code>: VM names updated</li>
+</ol>
+<h3 id="run-tests">Run Tests</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run shared disk test</span>
+pytest<span class="w"> </span>tests/shared_disk/test_shared_disk_rhel_migration.py<span class="w"> </span>-v
+
+<span class="c1"># Run with detailed logs</span>
+pytest<span class="w"> </span>tests/shared_disk/test_shared_disk_rhel_migration.py<span class="w"> </span>-v<span class="w"> </span>-s
+
+<span class="c1"># Skip teardown to inspect resources</span>
+pytest<span class="w"> </span>tests/shared_disk/test_shared_disk_rhel_migration.py<span class="w"> </span>--skip-teardown
+
+<span class="c1"># Run specific test method</span>
+pytest<span class="w"> </span>tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_verify_shared_disk_data<span class="w"> </span>-v
+</code></pre></div>
+
+<h3 id="expected-output">Expected Output</h3>
+<div class="highlight"><pre><span></span><code>tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_create_storagemap PASSED
+tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_create_networkmap PASSED
+tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_create_plan PASSED
+tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_migrate_vms PASSED
+tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_verify_shared_disk_data PASSED
+tests/shared_disk/test_shared_disk_rhel_migration.py::TestSharedDiskRhelMigration::test_check_vms PASSED
+
+======================== 6 of 6 completed, 6 Pass, 0 Fail ========================
+</code></pre></div>
+
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="test-fails-vm2-migration-fails">Test Fails: VM2 migration fails</h3>
+<p><strong>Check</strong>:</p>
+<div class="highlight"><pre><span></span><code>oc<span class="w"> </span>get<span class="w"> </span>plan<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+oc<span class="w"> </span>describe<span class="w"> </span>plan<span class="w"> </span>&lt;plan-vm2-name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</code></pre></div>
+
+<p><strong>Common causes</strong>:</p>
+<ul>
+<li>VM1's shared disk PVC not created (check VM1 migration)</li>
+<li>VM1 and VM2 don't reference the same shared disk in VMware</li>
+<li>Storage class doesn't support RWX mode</li>
+</ul>
+<h3 id="test-fails-test_verify_pvc_count">Test Fails: test_verify_pvc_count</h3>
+<p><strong>Check</strong>:</p>
+<div class="highlight"><pre><span></span><code>oc<span class="w"> </span>get<span class="w"> </span>pvc<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</code></pre></div>
+
+<p><strong>Expected</strong>:</p>
+<ul>
+<li>VM1 plan PVCs: 3 (OS + data + shared)</li>
+<li>VM2 plan PVCs: 2 (OS + data, NO shared)</li>
+</ul>
+<p><strong>If VM2 has 3 PVCs</strong>: MTV created a new shared disk PVC instead of reusing VM1's - check plan VM2 has <code>migrateSharedDisks: false</code>.</p>
+<h3 id="test-fails-test_verify_shared_disk_data-vm-cannot-mount">Test Fails: test_verify_shared_disk_data - VM cannot mount</h3>
+<p><strong>Error</strong>: <code>mount: /mnt/shared_disk: special device /dev/vdc1 does not exist</code></p>
+<p><strong>Cause</strong>: Shared disk device path is wrong.</p>
+<p><strong>Fix</strong>: Check actual device path in VM:</p>
+<div class="highlight"><pre><span></span><code>virtctl<span class="w"> </span>console<span class="w"> </span>vm/&lt;vm-name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+lsblk<span class="w">  </span><span class="c1"># Find shared disk device</span>
+</code></pre></div>
+
+<p>Update <code>shared_disk_device</code> in config.py.</p>
+<h3 id="test-fails-test_verify_shared_disk_data-file-not-found">Test Fails: test_verify_shared_disk_data - File not found</h3>
+<p><strong>Error</strong>: <code>cat: /mnt/shared_disk/test-vm2.txt: No such file or directory</code></p>
+<p><strong>Cause</strong>: Stale mount issue (fixed by unmount/remount).</p>
+<p><strong>Verify fix is applied</strong>: Check <code>utilities/shared_disk.py</code> line 97-98 has unmount/remount code.</p>
+<h3 id="test-fails-ssh-connection-timeout">Test Fails: SSH connection timeout</h3>
+<p><strong>Check</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check virtctl port-forward is running</span>
+ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">"virtctl port-forward"</span>
+
+<span class="c1"># Check VM is running</span>
+oc<span class="w"> </span>get<span class="w"> </span>vm<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+
+<span class="c1"># Check VM has IP address</span>
+oc<span class="w"> </span>get<span class="w"> </span>vmi<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</code></pre></div>
+
+<p><strong>Common causes</strong>:</p>
+<ul>
+<li>VM not fully booted</li>
+<li>Guest agent not running</li>
+<li>Firewall blocking SSH (port 22)</li>
+</ul>
+<h3 id="migration-hangs">Migration Hangs</h3>
+<p><strong>Check forklift controller logs</strong>:</p>
+<div class="highlight"><pre><span></span><code>oc<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>openshift-mtv<span class="w"> </span>deployment/forklift-controller<span class="w"> </span>-f
+</code></pre></div>
+
+<p><strong>Check virt-v2v pod logs</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Find virt-v2v pod for migration</span>
+oc<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>virt-v2v
+
+<span class="c1"># View logs</span>
+oc<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;<span class="w"> </span>&lt;virt-v2v-pod-name&gt;<span class="w"> </span>-f
+</code></pre></div>
+
+<h2 id="windows-shared-disk-migration-mtv-4639">Windows Shared Disk Migration (MTV-4639)</h2>
+<h3 id="overview_1">Overview</h3>
+<p>Windows shared disk migration uses the same <code>migrateSharedDisks</code> VM-level override but with
+a different approach for disk identification. Unlike Linux (which uses device paths like <code>/dev/vdc</code>),
+Windows has no stable device paths — drive letters are assigned dynamically and can change across
+reboots or migrations.</p>
+<h3 id="how-it-works-dynamic-ntfs-volume-labeling">How It Works: Dynamic NTFS Volume Labeling</h3>
+<p>The test dynamically labels the shared disk <strong>before migration</strong> using VMware Guest Operations API:</p>
+<ol>
+<li><strong>Pre-migration labeling</strong> (<code>test_label_shared_disk</code>):</li>
+<li>VMware API identifies the shared disk by SCSI controller position</li>
+<li>Guest Operations API runs PowerShell inside the source VM</li>
+<li>PowerShell matches the disk by WMI serial number (<code>Win32_DiskDrive.SerialNumber</code>)</li>
+<li>
+<p>Sets a unique NTFS volume label: <code>SHARED-{session_uuid}</code> (e.g., <code>SHARED-auto-egpg</code>)</p>
+</li>
+<li>
+<p><strong>Post-migration verification</strong> (<code>test_verify_shared_disk_data</code>):</p>
+</li>
+<li>Finds the shared volume by label using <code>Get-Volume -FileSystemLabel</code></li>
+<li>Brings the disk online (Windows SAN Policy may leave shared disks offline)</li>
+<li>VM1 writes a marker file, VM2 reads it (and vice versa)</li>
+<li>NTFS cache invalidation via disk offline/online cycling between reads</li>
+</ol>
+<h3 id="code-architecture_1">Code Architecture</h3>
+<div class="highlight"><pre><span></span><code>tests/shared_disk/test_shared_disk_windows_migration.py    # 7-step test class
+├─&gt; utilities/shared_disk.py
+│   ├─&gt; label_shared_disk_on_source_windows()              # Pre-migration: label via Guest Ops
+│   ├─&gt; verify_shared_disk_data_windows()                  # Post-migration: bidirectional verification
+│   ├─&gt; _win_ensure_shared_volume_online()                 # Bring disk online + find drive letter
+│   ├─&gt; _win_get_shared_drive_letter()                     # Poll for volume by label
+│   ├─&gt; _win_refresh_shared_disk()                         # NTFS cache flush (offline/online cycle)
+│   ├─&gt; _win_write_marker() / _win_read_marker()           # Marker file operations
+│   └─&gt; _win_run_powershell()                              # SSH PowerShell execution
+├─&gt; utilities/vmware_guest_operations.py                   # Guest Ops API (run_command_in_vmware_guest)
+└─&gt; tests/tests_config/config.py                           # VM config
+</code></pre></div>
+
+<h3 id="test-flow-7-steps">Test Flow (7 Steps)</h3>
+<div class="highlight"><pre><span></span><code>1. test_label_shared_disk        → Label shared NTFS volume via VMware Guest Ops
+2. test_create_storagemap        → Create storage mapping for both VMs
+3. test_create_networkmap        → Create network mapping for both VMs
+4. test_create_plan              → Create single plan with VM-level migrateSharedDisks overrides
+5. test_migrate_vms              → Execute cold migration
+6. test_verify_shared_disk_data  → Bidirectional read/write verification via SSH
+7. test_check_vms                → Standard post-migration validation
+</code></pre></div>
+
+<h3 id="test-configuration">Test Configuration</h3>
+<div class="highlight"><pre><span></span><code><span class="s2">"test_shared_disk_windows_migration"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="s2">"virtual_machines"</span><span class="p">:</span> <span class="p">[</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"mtv-tests-shared-win1"</span><span class="p">,</span> <span class="s2">"source_vm_power"</span><span class="p">:</span> <span class="s2">"off"</span><span class="p">,</span>
+         <span class="s2">"guest_agent"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"migrate_shared_disks"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>    <span class="c1"># Owner</span>
+        <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="s2">"mtv-tests-shared-win2"</span><span class="p">,</span> <span class="s2">"source_vm_power"</span><span class="p">:</span> <span class="s2">"off"</span><span class="p">,</span>
+         <span class="s2">"guest_agent"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"migrate_shared_disks"</span><span class="p">:</span> <span class="kc">False</span><span class="p">},</span>   <span class="c1"># Consumer</span>
+    <span class="p">],</span>
+    <span class="s2">"warm_migration"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="s2">"migrate_shared_disks"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="s2">"target_power_state"</span><span class="p">:</span> <span class="s2">"on"</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3 id="prerequisites-windows">Prerequisites (Windows)</h3>
+<ol>
+<li><strong>Source VMs</strong>: Two Windows Server VMs sharing a disk in VMware</li>
+<li>VMware Tools installed (required for Guest Operations API)</li>
+<li>VMs powered off before migration</li>
+<li>
+<p>No pre-configured labels required — the test labels the disk dynamically</p>
+</li>
+<li>
+<p><strong>OpenShift Cluster</strong>: MTV installed, RWX-capable storage class</p>
+</li>
+<li><strong>Provider config</strong>: <code>.providers.json</code> must include <code>windows_username</code> and <code>windows_password</code></li>
+</ol>
+<h3 id="key-design-decisions">Key Design Decisions</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dynamic labeling via Guest Ops</td>
+<td>No manual VM preparation needed; unique per session</td>
+</tr>
+<tr>
+<td>NTFS label (not device path)</td>
+<td>Survives disk re-attachment across hypervisors</td>
+</tr>
+<tr>
+<td><code>shortuuid</code> in label</td>
+<td>16 chars total, within NTFS 32-char limit</td>
+</tr>
+<tr>
+<td>Disk offline/online for cache flush</td>
+<td>Only reliable way without admin privileges</td>
+</tr>
+<tr>
+<td>TimeoutSampler with SSH retry</td>
+<td>Windows SSH via port-forward is flaky</td>
+</tr>
+<tr>
+<td><code>-ErrorAction SilentlyContinue</code></td>
+<td>Separates "volume not found yet" from real SSH errors</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="troubleshooting-windows">Troubleshooting (Windows)</h3>
+<p><strong>Shared volume not found after migration:</strong></p>
+<ul>
+<li>Check the label was set: test logs should show <code>Labeled disk N drive X: as SHARED-auto-xxxx</code></li>
+<li>Verify the disk is online: <code>Get-Disk | Where-Object {$_.OperationalStatus -eq 'Offline'}</code></li>
+<li>Check Windows SAN Policy: <code>Get-StorageSetting | Select NewDiskPolicy</code></li>
+</ul>
+<p><strong>SSH timeout during verification:</strong></p>
+<ul>
+<li>The test retries for 300s with 15s intervals — check logs for the last error</li>
+<li>Verify VM is running: <code>oc get vmi -n &lt;namespace&gt;</code></li>
+<li>Check Windows SSH service: <code>Get-Service sshd</code> inside the VM</li>
+</ul>
+<p><strong>Migration fails after labeling:</strong></p>
+<ul>
+<li>Ensure <code>shutdown_vm_guest()</code> completed (not <code>stop_vm()</code> which hard-powers-off)</li>
+<li>Check for Windows Update blocking shutdown</li>
+<li>Verify VMware Tools are running for graceful shutdown</li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>The shared disk migration feature enables migrating VMs with shared disks from VMware to OpenShift. Key aspects:</p>
+<ol>
+<li><strong>RHEL test</strong> (MTV-4548): 6-step pattern, device paths (<code>/dev/vdc</code>), mount/unmount verification</li>
+<li><strong>Windows test</strong> (MTV-4639): 7-step pattern, dynamic NTFS labeling via Guest Ops, drive letter discovery</li>
+<li><strong>Single plan</strong>: Both VMs migrated in one plan with VM-level <code>migrateSharedDisks</code> overrides</li>
+<li><strong>Bidirectional access test</strong>: Both VMs can read/write the shared disk after migration</li>
+<li><strong>Known limitation (Linux)</strong>: Shared disk must be unmounted before migration (MTV-2200)</li>
+</ol>
+                </div>
+            </article>
+            <nav class="page-nav">
+
+                <a href="automation-and-release.html" class="page-nav-link page-nav-prev">
+                    <span class="page-nav-label">Previous</span>
+                    <span class="page-nav-title">Automation And Release</span>
+                </a>
+
+
+                <div></div>
+
+            </nav>
+
+            <aside class="toc-sidebar">
+                <div class="toc-container">
+                    <h3>On this page</h3>
+                    <div class="toc">
+<ul>
+<li><a href="#table-of-contents">Table of Contents</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#feature-background">Feature Background</a><ul>
+<li><a href="#vmware-shared-disks">VMware Shared Disks</a></li>
+<li><a href="#openshift-shared-disks">OpenShift Shared Disks</a></li>
+<li><a href="#migration-challenge">Migration Challenge</a></li>
+<li><a href="#known-limitation-mtv-2200">Known Limitation (MTV-2200)</a></li>
+</ul>
+</li>
+<li><a href="#code-architecture">Code Architecture</a><ul>
+<li><a href="#file-responsibilities">File Responsibilities</a></li>
+</ul>
+</li>
+<li><a href="#test-workflow">Test Workflow</a><ul>
+<li><a href="#high-level-flow">High-Level Flow</a></li>
+<li><a href="#detailed-step-by-step">Detailed Step-by-Step</a></li>
+</ul>
+</li>
+<li><a href="#code-details">Code Details</a><ul>
+<li><a href="#1-test-configuration-teststests_configconfigpy">1. Test Configuration (tests/tests_config/config.py)</a></li>
+<li><a href="#2-shared-disk-utilities-utilitiesshared_diskpy">2. Shared Disk Utilities (utilities/shared_disk.py)</a></li>
+<li><a href="#3-test-class-testsshared_disktest_shared_disk_rhel_migrationpy">3. Test Class (tests/shared_disk/test_shared_disk_rhel_migration.py)</a></li>
+</ul>
+</li>
+<li><a href="#infrastructure-fixes">Infrastructure Fixes</a><ul>
+<li><a href="#fix-1-ssh-executor-port-utilitiesssh_utilspy">Fix 1: SSH Executor Port (utilities/ssh_utils.py)</a></li>
+<li><a href="#fix-2-virtctl-symlink-utilitiesvirtctlpy">Fix 2: virtctl Symlink (utilities/virtctl.py)</a></li>
+</ul>
+</li>
+<li><a href="#running-the-tests">Running the Tests</a><ul>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#run-tests">Run Tests</a></li>
+<li><a href="#expected-output">Expected Output</a></li>
+</ul>
+</li>
+<li><a href="#troubleshooting">Troubleshooting</a><ul>
+<li><a href="#test-fails-vm2-migration-fails">Test Fails: VM2 migration fails</a></li>
+<li><a href="#test-fails-test_verify_pvc_count">Test Fails: test_verify_pvc_count</a></li>
+<li><a href="#test-fails-test_verify_shared_disk_data-vm-cannot-mount">Test Fails: test_verify_shared_disk_data - VM cannot mount</a></li>
+<li><a href="#test-fails-test_verify_shared_disk_data-file-not-found">Test Fails: test_verify_shared_disk_data - File not found</a></li>
+<li><a href="#test-fails-ssh-connection-timeout">Test Fails: SSH connection timeout</a></li>
+<li><a href="#migration-hangs">Migration Hangs</a></li>
+</ul>
+</li>
+<li><a href="#windows-shared-disk-migration-mtv-4639">Windows Shared Disk Migration (MTV-4639)</a><ul>
+<li><a href="#overview_1">Overview</a></li>
+<li><a href="#how-it-works-dynamic-ntfs-volume-labeling">How It Works: Dynamic NTFS Volume Labeling</a></li>
+<li><a href="#code-architecture_1">Code Architecture</a></li>
+<li><a href="#test-flow-7-steps">Test Flow (7 Steps)</a></li>
+<li><a href="#test-configuration">Test Configuration</a></li>
+<li><a href="#prerequisites-windows">Prerequisites (Windows)</a></li>
+<li><a href="#key-design-decisions">Key Design Decisions</a></li>
+<li><a href="#troubleshooting-windows">Troubleshooting (Windows)</a></li>
+</ul>
+</li>
+<li><a href="#summary">Summary</a></li>
+</ul>
+</div>
+
+                </div>
+            </aside>
+
+
+        </main>
+
+        <footer class="page-footer">
+
+            Built from <code>docs/*.md</code> by <code>pi-docsite</code>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-llm">LLM-friendly: <a href="llms.txt">llms.txt</a> &middot; <a href="llms-full.txt">llms-full.txt</a></span>
+        </footer>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <script src="assets/theme.js?v=66bf87bdd9"></script>
+
+    <script src="assets/search.js?v=66bf87bdd9"></script>
+    <script src="assets/copy.js?v=66bf87bdd9"></script>
+    <script src="assets/callouts.js?v=66bf87bdd9"></script>
+    <script src="assets/scrollspy.js?v=66bf87bdd9"></script>
+    <script src="assets/codelabels.js?v=66bf87bdd9"></script>
+    <script src="assets/github.js?v=66bf87bdd9"></script>
+    <script>
+(function() {
+    var toggle = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggle && sidebar) {
+        toggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('open');
+            var expanded = sidebar.classList.contains('open');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        });
+    }
+    if (overlay) {
+        overlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
+            if (toggle) toggle.setAttribute('aria-expanded', 'false');
+        });
+    }
+})();
+</script>
+<script>
+(function() {
+    var sidebar = document.querySelector('.sidebar-nav') || document.querySelector('.sidebar');
+    if (!sidebar) return;
+
+    // Restore scroll position
+    var saved = sessionStorage.getItem('sidebar-scroll');
+    if (saved) sidebar.scrollTop = parseInt(saved, 10);
+
+    // Save scroll position before navigating
+    sidebar.addEventListener('scroll', function() {
+        sessionStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+    });
+
+    // Also scroll active link into view if no saved position
+    if (!saved) {
+        var active = sidebar.querySelector('.nav-link.active');
+        if (active) {
+            active.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }
+})();
+</script>
+<!-- generated by pi-docsite -->
+</body>
+</html>
